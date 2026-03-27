@@ -14,16 +14,33 @@ export default function Home() {
   const [result, setResult] = useState<LyricResult | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [cached, setCached] = useState(false)
 
   async function search() {
     if (!query.trim()) return
     setLoading(true)
     setError('')
     setResult(null)
+    setCached(false)
+
+    const cacheKey = `lyric_${query.trim().toLowerCase()}`
+    const stored = localStorage.getItem(cacheKey)
+
+    if (stored) {
+      setResult(JSON.parse(stored))
+      setCached(true)
+      setLoading(false)
+      return
+    }
+
     const res = await fetch(`/api/lyrics?q=${encodeURIComponent(query)}`)
     const data = await res.json()
-    if (res.ok) setResult(data)
-    else setError(data.error || 'Something went wrong')
+    if (res.ok) {
+      setResult(data)
+      localStorage.setItem(cacheKey, JSON.stringify(data))
+    } else {
+      setError(data.error || 'Something went wrong')
+    }
     setLoading(false)
   }
 
@@ -47,11 +64,28 @@ export default function Home() {
           {loading ? '...' : 'Search'}
         </button>
       </div>
+
+      {loading && (
+        <div className="text-center text-stone-400 mt-20">
+          <p className="text-4xl mb-4">🎵</p>
+          <p>Fetching lyrics...</p>
+          <p className="text-xs mt-2 text-stone-600">First time takes ~20s. Saved after this.</p>
+        </div>
+      )}
+
       {error && <p className="text-red-400 mb-4">{error}</p>}
+
       {result && (
         <div>
-          <p className="text-white font-semibold text-lg">{result.title}</p>
-          <p className="text-stone-400 text-sm mb-6">{result.artist}</p>
+          <div className="flex items-center justify-between mb-6">
+            <div>
+              <p className="text-white font-semibold text-lg">{result.title}</p>
+              <p className="text-stone-400 text-sm">{result.artist}</p>
+            </div>
+            {cached && (
+              <span className="text-xs bg-stone-800 text-rose-400 px-3 py-1 rounded-full">⚡ Cached</span>
+            )}
+          </div>
           <div className="space-y-5">
             {result.simplified.map((line, i) => (
               <div key={i} className="border-l-2 border-rose-500 pl-4">
