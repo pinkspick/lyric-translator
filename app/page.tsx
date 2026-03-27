@@ -1,9 +1,17 @@
 'use client'
 import { useState } from 'react'
 
+type LyricResult = {
+  title: string
+  artist: string
+  simplified: string[]
+  pinyin: string[]
+  english: string[]
+}
+
 export default function Home() {
   const [query, setQuery] = useState('')
-  const [result, setResult] = useState(null)
+  const [result, setResult] = useState<LyricResult | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
@@ -75,3 +83,10 @@ export default function Home() {
     </main>
   )
 }
+```
+
+Press **`Cmd + S`**. Then in Terminal:
+```
+git add .
+git commit -m "fix typescript types"
+git push
