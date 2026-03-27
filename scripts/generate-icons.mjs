@@ -1,0 +1,9 @@
+import { writeFileSync } from 'fs'
+
+const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 192 192">
+  <rect width="192" height="192" rx="38" fill="#d47a8a"/>
+  <text x="96" y="130" font-size="100" text-anchor="middle" fill="white">🎵</text>
+</svg>`
+
+writeFileSync('public/icon.svg', svg)
+console.log('SVG icon generated!')
