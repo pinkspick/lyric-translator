@@ -29,13 +29,12 @@ export default function Home() {
 
   return (
     <main className="min-h-screen bg-stone-950 text-white p-6 max-w-2xl mx-auto pb-20">
-      <h1 className="text-2xl font-bold mb-1 text-rose-400">🎵 Lyric Translator</h1>
+      <h1 className="text-2xl font-bold mb-1 text-rose-400">Lyric Translator</h1>
       <p className="text-stone-500 mb-6 text-sm">Simplified Chinese · Pinyin · English</p>
-
       <div className="flex gap-2 mb-8">
         <input
           className="flex-1 bg-stone-800 border border-stone-700 rounded-lg px-4 py-3 text-white placeholder-stone-500 focus:outline-none focus:border-rose-400"
-          placeholder="e.g. 玉兰花 Ryan B or 还在流浪"
+          placeholder="e.g. 还在流浪 or moon represents my heart"
           value={query}
           onChange={e => setQuery(e.target.value)}
           onKeyDown={e => e.key === 'Enter' && search()}
@@ -48,27 +47,11 @@ export default function Home() {
           {loading ? '...' : 'Search'}
         </button>
       </div>
-
-      {loading && (
-        <div className="text-center text-stone-400 mt-20">
-          <p className="text-4xl mb-4">🎵</p>
-          <p>Fetching lyrics...</p>
-        </div>
-      )}
-
-      {error && (
-        <div className="bg-stone-900 border border-stone-700 rounded-xl p-5 text-center">
-          <p className="text-red-400 mb-2">{error}</p>
-          <p className="text-stone-500 text-sm">Try searching in Chinese characters + artist name</p>
-        </div>
-      )}
-
+      {error && <p className="text-red-400 mb-4">{error}</p>}
       {result && (
         <div>
-          <div className="mb-6">
-            <p className="text-white font-semibold text-lg">{result.title}</p>
-            <p className="text-stone-400 text-sm">{result.artist}</p>
-          </div>
+          <p className="text-white font-semibold text-lg">{result.title}</p>
+          <p className="text-stone-400 text-sm mb-6">{result.artist}</p>
           <div className="space-y-5">
             {result.simplified.map((line, i) => (
               <div key={i} className="border-l-2 border-rose-500 pl-4">
@@ -83,10 +66,3 @@ export default function Home() {
     </main>
   )
 }
-```
-
-Press **`Cmd + S`**. Then in Terminal:
-```
-git add .
-git commit -m "fix typescript types"
-git push
