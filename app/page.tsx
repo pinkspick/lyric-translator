@@ -1,5 +1,6 @@
 import { supabase } from '../lib/supabase''use client'
 import { useState, useEffect } from 'react'
+import { supabase } from '../lib/supabase'
 
 type LyricResult = {
   title: string
@@ -40,7 +41,21 @@ export default function Home() {
 
   useEffect(() => { loadHistory() }, [])
 
-  function loadHistory() {
+  async function loadHistory() {
+    try {
+      const { data } = await supabase.from('songs').select('cache_key, data').order('updated_at', { ascending: false });
+      if (data && data.length > 0) {
+        const items = data.map((row) => {
+          const parsed = JSON.parse(row.data);
+          localStorage.setItem(row.cache_key, row.data);
+          return { key: row.cache_key, title: parsed.title || row.cache_key, artist: parsed.artist || '' };
+        });
+        setHistory(items);
+        return;
+      }
+    } catch {}
+    // fallback to localStorage
+    
     const items: HistoryItem[] = []
     for (let i = 0; i < localStorage.length; i++) {
       const key = localStorage.key(i)
@@ -68,6 +83,16 @@ export default function Home() {
     setView('search')
 
     const cacheKey = `lyric_${query.trim().toLowerCase()}`
+    // Check Supabase cloud first
+    const { data: cloudData } = await supabase.from('songs').select('data').eq('cache_key', cacheKey).single();
+    if (cloudData) {
+      const parsed = JSON.parse(cloudData.data);
+      setResult(parsed);
+      localStorage.setItem(cacheKey, cloudData.data);
+      setCached(true);
+      setLoading(false);
+      return;
+    }
     const stored = localStorage.getItem(cacheKey)
     if (stored) {
       setResult(JSON.parse(stored))
@@ -80,7 +105,8 @@ export default function Home() {
     const data = await res.json()
     if (res.ok) {
       setResult(data)
-      localStorage.setItem(cacheKey, JSON.stringify(data))
+      localStorage.setItem(cacheKey, JSON.stringify(data));
+      await supabase.from('songs').upsert({ cache_key: cacheKey, data: JSON.stringify(data), updated_at: new Date().toISOString() }, { onConflict: 'cache_key' })
       loadHistory()
       const sRes = await fetch(`/api/search?q=${encodeURIComponent(query)}`)
       const sData = await sRes.json()
