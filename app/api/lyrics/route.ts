@@ -1,34 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { pinyin } from 'pinyin-pro'
+import { pinyin, convertToPinyin } from 'pinyin-pro'
 
 const sleep = (ms: number) => new Promise(r => setTimeout(r, ms))
-
-async function searchNetEase(query: string): Promise<{lyrics: string, title: string, artist: string} | null> {
-  try {
-    const searchRes = await fetch("https://music.163.com/api/search/get?s=" + encodeURIComponent(query) + "&type=1&limit=5", {
-      headers: { "User-Agent": "Mozilla/5.0", "Referer": "https://music.163.com" }
-    })
-    const searchData = await searchRes.json()
-    const songs = searchData?.result?.songs
-    if (!songs || songs.length === 0) return null
-    const song = songs[0]
-    const id = song.id
-    const title = song.name
-    const artist = song.artists?.[0]?.name || ""
-    const lyricRes = await fetch("https://music.163.com/api/song/lyric?id=" + id + "&lv=1&kv=1&tv=-1", {
-      headers: { "User-Agent": "Mozilla/5.0", "Referer": "https://music.163.com" }
-    })
-    const lyricData = await lyricRes.json()
-    const raw = lyricData?.lrc?.lyric || ""
-    const lyrics = raw.split("\n")
-      .map((line: string) => line.replace(/\[\d+:\d+\.\d+\]/g, "").trim())
-      .filter((line: string) => line.length > 0)
-      .join("\n")
-    return { lyrics, title, artist }
-  } catch {
-    return null
-  }
-}
 
 async function searchLrcLib(query: string): Promise<{lyrics: string, title: string, artist: string} | null> {
   try {
@@ -56,18 +29,11 @@ export async function GET(request: NextRequest) {
     title = "Manual Entry"
     artist = ""
   } else {
-    const netease = await searchNetEase(query)
-    if (netease && netease.lyrics) {
-      lines = netease.lyrics.split("\n").filter((l: string) => l.trim() !== "")
-      title = netease.title
-      artist = netease.artist
-    } else {
-      const lrclib = await searchLrcLib(query)
-      if (lrclib && lrclib.lyrics) {
-        lines = lrclib.lyrics.split("\n").filter((l: string) => l.trim() !== "")
-        title = lrclib.title
-        artist = lrclib.artist
-      }
+    const lrclib = await searchLrcLib(query)
+    if (lrclib && lrclib.lyrics) {
+      lines = lrclib.lyrics.split("\n").filter((l: string) => l.trim() !== "")
+      title = lrclib.title
+      artist = lrclib.artist
     }
   }
 
@@ -75,12 +41,26 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Song not found. Try including the artist name, or add lyrics manually." }, { status: 404 })
   }
 
-  const pinyinLines = lines.map((line: string) =>
+  // Convert each line to Simplified Chinese via MyMemory zh-TW to zh-CN per line
+  const simplifiedLines: string[] = []
+  for (const line of lines) {
+    if (!line.trim()) { simplifiedLines.push(line); continue }
+    try {
+      const res = await fetch("https://api.mymemory.translated.net/get?q=" + encodeURIComponent(line) + "&langpair=zh-TW|zh-CN")
+      const data = await res.json()
+      simplifiedLines.push(data.responseData?.translatedText || line)
+    } catch {
+      simplifiedLines.push(line)
+    }
+    await sleep(100)
+  }
+
+  const pinyinLines = simplifiedLines.map((line: string) =>
     pinyin(line, { toneType: "symbol", separator: " " })
   )
 
   const englishLines: string[] = []
-  for (const line of lines.slice(0, 40)) {
+  for (const line of simplifiedLines.slice(0, 40)) {
     if (!line.trim()) { englishLines.push(""); continue }
     try {
       const res = await fetch("https://api.mymemory.translated.net/get?q=" + encodeURIComponent(line) + "&langpair=zh|en")
@@ -92,5 +72,5 @@ export async function GET(request: NextRequest) {
     await sleep(200)
   }
 
-  return NextResponse.json({ title, artist, simplified: lines, pinyin: pinyinLines, english: englishLines })
+  return NextResponse.json({ title, artist, simplified: simplifiedLines, pinyin: pinyinLines, english: englishLines })
 }
