@@ -151,122 +151,128 @@ export default function Home() {
   }
 
   return (
-    <main className="min-h-screen bg-pink-50 text-gray-800 max-w-2xl mx-auto pb-20">
-      
-      
-
-      <div className="flex gap-2 mb-4">
-        <button onClick={() => setView('search')} className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${view === 'search' ? 'bg-pink-500 text-white' : 'bg-white text-gray-400 border border-pink-200'}`}>Search</button>
-        <button onClick={() => { setView('history'); loadHistory() }} className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${view === 'history' ? 'bg-pink-500 text-white' : 'bg-white text-gray-400 border border-pink-200'}`}>Saved ({history.length})</button>
+    <main className="min-h-screen text-gray-700" style={{background: '#fce8e8'}}>
+      {/* Header layers */}
+      <div style={{background: '#f4a7a7', height: '12px'}} />
+      <div style={{background: '#c9b0b0', height: '10px'}} />
+      <div style={{background: '#f7d5d5', height: '8px'}} />
+      <div style={{background: '#fff', padding: '16px 24px 12px'}}>
+        <h1 style={{color: '#b06070', fontSize: '22px', fontWeight: 700}}>Lyric Translator</h1>
+        <p style={{color: '#b0a0a0', fontSize: '13px'}}>Simplified Chinese · Pinyin · English</p>
       </div>
 
-      {view === 'history' && (
-        <div className="space-y-2">
-          {history.length === 0 && <p className="text-gray-400 text-sm">No saved songs yet.</p>}
-          {history.map(item => (
-            <div key={item.key} className="flex items-center justify-between bg-white border border-pink-100 rounded-xl px-4 py-3 shadow-sm">
-              <button className="text-left flex-1" onClick={() => loadFromHistory(item)}>
-                <p className="text-gray-800 font-medium">{item.title}</p>
-                <p className="text-gray-400 text-sm">{item.artist}</p>
-              </button>
-              <button onClick={() => deleteFromHistory(item.key)} className="text-gray-300 hover:text-red-400 ml-4 text-lg">✕</button>
-            </div>
-          ))}
+      <div className="max-w-2xl mx-auto px-6 pt-5 pb-20">
+        <div className="flex gap-2 mb-4">
+          <button onClick={() => setView('search')} style={{background: view === 'search' ? '#d47a8a' : '#fff', color: view === 'search' ? '#fff' : '#b0a0a0', border: '1px solid #e8c0c8'}} className="px-4 py-2 rounded-lg text-sm font-medium transition-colors">Search</button>
+          <button onClick={() => { setView('history'); loadHistory() }} style={{background: view === 'history' ? '#d47a8a' : '#fff', color: view === 'history' ? '#fff' : '#b0a0a0', border: '1px solid #e8c0c8'}} className="px-4 py-2 rounded-lg text-sm font-medium transition-colors">Saved ({history.length})</button>
         </div>
-      )}
 
-      {view === 'search' && (
-        <>
-          <div className="flex gap-2 mb-4">
-            <input
-              className="flex-1 bg-white border border-pink-200 rounded-lg px-4 py-3 text-gray-800 placeholder-gray-300 focus:outline-none focus:border-pink-400 shadow-sm"
-              placeholder="e.g. 玉兰花 Ryan B or 还在流浪"
-              value={query}
-              onChange={e => setQuery(e.target.value)}
-              onKeyDown={e => e.key === 'Enter' && search()}
-            />
-            <button onClick={search} className="bg-pink-500 hover:bg-pink-400 text-white px-6 py-3 rounded-lg font-semibold transition-colors disabled:opacity-50 shadow-sm" disabled={loading}>
-              {loading ? '...' : 'Search'}
-            </button>
-          </div>
-
-          {loading && (
-            <div className="text-center text-gray-400 mt-20">
-              <p className="text-4xl mb-4">🎵</p>
-              <p>Fetching lyrics...</p>
-              <p className="text-xs mt-2 text-gray-300">First time takes ~20s. Saved after this.</p>
-            </div>
-          )}
-
-          {loadingLyrics && (
-            <div className="text-center text-gray-400 mt-10">
-              <p>Loading selected track...</p>
-            </div>
-          )}
-
-          {error && (
-            <div className="bg-white border border-red-200 rounded-xl p-4 mb-4 shadow-sm">
-              <p className="text-red-400 text-sm">{error}</p>
-            </div>
-          )}
-
-          {showResults && searchResults.length > 0 && (
-            <div className="mb-6">
-              <p className="text-gray-400 text-sm mb-3">Pick a result:</p>
-              <div className="space-y-2">
-                {searchResults.map(track => (
-                  <button key={track.id} onClick={() => loadFromSearchResult(track)} className="w-full text-left bg-white border border-pink-100 hover:border-pink-400 rounded-xl px-4 py-3 transition-colors shadow-sm">
-                    <p className="text-gray-800 font-medium">{track.title}</p>
-                    <p className="text-gray-400 text-sm">{track.artist} {track.album ? `· ${track.album}` : ''}</p>
-                    {!track.hasLyrics && <p className="text-gray-300 text-xs mt-1">No lyrics available</p>}
-                  </button>
-                ))}
+        {view === 'history' && (
+          <div className="space-y-2">
+            {history.length === 0 && <p style={{color: '#b0a0a0'}} className="text-sm">No saved songs yet.</p>}
+            {history.map(item => (
+              <div key={item.key} className="flex items-center justify-between rounded-xl px-4 py-3" style={{background: '#fff', border: '1px solid #f0d8d8'}}>
+                <button className="text-left flex-1" onClick={() => loadFromHistory(item)}>
+                  <p className="font-medium" style={{color: '#5a3a3a'}}>{item.title}</p>
+                  <p className="text-sm" style={{color: '#b0a0a0'}}>{item.artist}</p>
+                </button>
+                <button onClick={() => deleteFromHistory(item.key)} className="ml-4 text-lg" style={{color: '#d0c0c0'}}>✕</button>
               </div>
-              <button onClick={() => { setShowResults(false); setShowManual(true) }} className="mt-3 text-gray-400 text-sm underline">None of these? Add manually</button>
-            </div>
-          )}
+            ))}
+          </div>
+        )}
 
-          {showManual && (
-            <div className="bg-white border border-pink-300 rounded-xl p-5 mb-6 shadow-sm">
-              <p className="text-gray-800 font-semibold mb-1">Add lyrics manually</p>
-              <p className="text-gray-400 text-sm mb-4">Paste the Chinese lyrics below.</p>
-              <textarea
-                className="w-full bg-pink-50 border border-pink-200 rounded-lg px-4 py-3 text-gray-800 placeholder-gray-300 focus:outline-none focus:border-pink-400 h-48 resize-none"
-                placeholder="Paste lyrics here, one line per line..."
-                value={manualLyrics}
-                onChange={e => setManualLyrics(e.target.value)}
+        {view === 'search' && (
+          <>
+            <div className="flex gap-2 mb-4">
+              <input
+                className="flex-1 rounded-lg px-4 py-3 focus:outline-none"
+                style={{background: '#fff', border: '1px solid #e8c0c8', color: '#5a3a3a'}}
+                placeholder="e.g. 玉兰花 Ryan B or 还在流浪"
+                value={query}
+                onChange={e => setQuery(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && search()}
               />
-              <button onClick={submitManual} disabled={manualLoading || !manualLyrics.trim()} className="mt-3 w-full bg-pink-500 hover:bg-pink-400 text-white py-3 rounded-lg font-semibold transition-colors disabled:opacity-50">
-                {manualLoading ? 'Processing...' : 'Generate & Save'}
+              <button onClick={search} disabled={loading} className="px-6 py-3 rounded-lg font-semibold transition-colors" style={{background: '#d47a8a', color: '#fff'}}>
+                {loading ? '...' : 'Search'}
               </button>
             </div>
-          )}
 
-          {result && (
-            <div>
-              <div className="flex items-center justify-between mb-2">
-                <div>
-                  <p className="text-gray-800 font-semibold text-lg">{result.title}</p>
-                  <p className="text-gray-400 text-sm">{result.artist}</p>
+            {loading && (
+              <div className="text-center mt-20" style={{color: '#b0a0a0'}}>
+                <p className="text-4xl mb-4">🎵</p>
+                <p>Fetching lyrics...</p>
+                <p className="text-xs mt-2" style={{color: '#d0c0c0'}}>First time takes ~20s. Saved after this.</p>
+              </div>
+            )}
+
+            {loadingLyrics && <div className="text-center mt-10" style={{color: '#b0a0a0'}}><p>Loading selected track...</p></div>}
+
+            {error && (
+              <div className="rounded-xl p-4 mb-4" style={{background: '#fff', border: '1px solid #f0c0c0'}}>
+                <p className="text-sm" style={{color: '#c07070'}}>{error}</p>
+              </div>
+            )}
+
+            {showResults && searchResults.length > 0 && (
+              <div className="mb-6">
+                <p className="text-sm mb-3" style={{color: '#b0a0a0'}}>Pick a result:</p>
+                <div className="space-y-2">
+                  {searchResults.map(track => (
+                    <button key={track.id} onClick={() => loadFromSearchResult(track)} className="w-full text-left rounded-xl px-4 py-3 transition-colors" style={{background: '#fff', border: '1px solid #f0d8d8'}}>
+                      <p className="font-medium" style={{color: '#5a3a3a'}}>{track.title}</p>
+                      <p className="text-sm" style={{color: '#b0a0a0'}}>{track.artist}{track.album ? ` · ${track.album}` : ''}</p>
+                      {!track.hasLyrics && <p className="text-xs mt-1" style={{color: '#d0c0c0'}}>No lyrics available</p>}
+                    </button>
+                  ))}
                 </div>
-                {cached && <span className="text-xs bg-pink-100 text-pink-500 px-3 py-1 rounded-full">⚡ Cached</span>}
+                <button onClick={() => { setShowResults(false); setShowManual(true) }} className="mt-3 text-sm underline" style={{color: '#b0a0a0'}}>None of these? Add manually</button>
               </div>
-              {searchResults.length > 1 && (
-                <button onClick={() => setShowResults(!showResults)} className="text-gray-300 text-xs underline mb-4 block">Wrong song?</button>
-              )}
-              <div className="space-y-4 mt-4">
-                {result.simplified.map((line, i) => (
-                  <div key={i} className="border-l-2 border-pink-400 pl-4">
-                    <p className="text-gray-800 text-lg font-medium">{line}</p>
-                    <p className="text-sm text-pink-400 mt-1">{result.pinyin[i]}</p>
-                    <p className="text-sm text-gray-400 mt-1 italic">{result.english[i] || ''}</p>
+            )}
+
+            {showManual && (
+              <div className="rounded-xl p-5 mb-6" style={{background: '#fff', border: '1px solid #d47a8a'}}>
+                <p className="font-semibold mb-1" style={{color: '#5a3a3a'}}>Add lyrics manually</p>
+                <p className="text-sm mb-4" style={{color: '#b0a0a0'}}>Paste the Chinese lyrics below.</p>
+                <textarea
+                  className="w-full rounded-lg px-4 py-3 h-48 resize-none focus:outline-none"
+                  style={{background: '#fce8e8', border: '1px solid #e8c0c8', color: '#5a3a3a'}}
+                  placeholder="Paste lyrics here, one line per line..."
+                  value={manualLyrics}
+                  onChange={e => setManualLyrics(e.target.value)}
+                />
+                <button onClick={submitManual} disabled={manualLoading || !manualLyrics.trim()} className="mt-3 w-full py-3 rounded-lg font-semibold transition-colors" style={{background: '#d47a8a', color: '#fff'}}>
+                  {manualLoading ? 'Processing...' : 'Generate & Save'}
+                </button>
+              </div>
+            )}
+
+            {result && (
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <div>
+                    <p className="font-semibold text-lg" style={{color: '#5a3a3a'}}>{result.title}</p>
+                    <p className="text-sm" style={{color: '#b0a0a0'}}>{result.artist}</p>
                   </div>
-                ))}
+                  {cached && <span className="text-xs px-3 py-1 rounded-full" style={{background: '#fce8e8', color: '#d47a8a'}}>⚡ Cached</span>}
+                </div>
+                {searchResults.length > 1 && (
+                  <button onClick={() => setShowResults(!showResults)} className="text-xs underline mb-4 block" style={{color: '#c0a0a0'}}>Wrong song?</button>
+                )}
+                <div className="space-y-4 mt-4">
+                  {result.simplified.map((line, i) => (
+                    <div key={i} className="pl-4" style={{borderLeft: '2px solid #d47a8a'}}>
+                      <p className="text-lg font-medium" style={{color: '#5a3a3a'}}>{line}</p>
+                      <p className="text-sm mt-1" style={{color: '#c07a8a'}}>{result.pinyin[i]}</p>
+                      <p className="text-sm mt-1 italic" style={{color: '#b0a0a0'}}>{result.english[i] || ''}</p>
+                    </div>
+                  ))}
+                </div>
               </div>
-            </div>
-          )}
-        </>
-      )}
+            )}
+          </>
+        )}
+      </div>
     </main>
   )
 }
