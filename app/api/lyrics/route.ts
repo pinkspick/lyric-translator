@@ -65,3 +65,4 @@ export async function GET(request: NextRequest) {
 
   return NextResponse.json({ title, artist, simplified: simplifiedLines, pinyin: pinyinLines, english: englishLines })
 }
+// fresh build Fri Mar 27 10:18:38 WIB 2026
