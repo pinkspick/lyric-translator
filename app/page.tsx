@@ -15,6 +15,9 @@ export default function Home() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [cached, setCached] = useState(false)
+  const [showManual, setShowManual] = useState(false)
+  const [manualLyrics, setManualLyrics] = useState('')
+  const [manualLoading, setManualLoading] = useState(false)
 
   async function search() {
     if (!query.trim()) return
@@ -22,6 +25,7 @@ export default function Home() {
     setError('')
     setResult(null)
     setCached(false)
+    setShowManual(false)
 
     const cacheKey = `lyric_${query.trim().toLowerCase()}`
     const stored = localStorage.getItem(cacheKey)
@@ -39,19 +43,42 @@ export default function Home() {
       setResult(data)
       localStorage.setItem(cacheKey, JSON.stringify(data))
     } else {
-      setError(data.error || 'Something went wrong')
+      setError(data.error || 'Song not found.')
+      setShowManual(true)
     }
     setLoading(false)
+  }
+
+  async function submitManual() {
+    if (!manualLyrics.trim() || !query.trim()) return
+    setManualLoading(true)
+    setError('')
+
+    const res = await fetch(`/api/lyrics?q=${encodeURIComponent(manualLyrics)}&manual=true`)
+    const data = await res.json()
+
+    if (res.ok) {
+      const finalResult = { ...data, title: query, artist: 'Manual Entry' }
+      setResult(finalResult)
+      const cacheKey = `lyric_${query.trim().toLowerCase()}`
+      localStorage.setItem(cacheKey, JSON.stringify(finalResult))
+      setShowManual(false)
+      setManualLyrics('')
+    } else {
+      setError('Could not process lyrics. Try again.')
+    }
+    setManualLoading(false)
   }
 
   return (
     <main className="min-h-screen bg-stone-950 text-white p-6 max-w-2xl mx-auto pb-20">
       <h1 className="text-2xl font-bold mb-1 text-rose-400">Lyric Translator</h1>
       <p className="text-stone-500 mb-6 text-sm">Simplified Chinese · Pinyin · English</p>
-      <div className="flex gap-2 mb-8">
+
+      <div className="flex gap-2 mb-4">
         <input
           className="flex-1 bg-stone-800 border border-stone-700 rounded-lg px-4 py-3 text-white placeholder-stone-500 focus:outline-none focus:border-rose-400"
-          placeholder="e.g. 还在流浪 or moon represents my heart"
+          placeholder="e.g. 玉兰花 Ryan B or 还在流浪"
           value={query}
           onChange={e => setQuery(e.target.value)}
           onKeyDown={e => e.key === 'Enter' && search()}
@@ -73,7 +100,32 @@ export default function Home() {
         </div>
       )}
 
-      {error && <p className="text-red-400 mb-4">{error}</p>}
+      {error && (
+        <div className="bg-stone-900 border border-stone-800 rounded-xl p-5 mb-4">
+          <p className="text-red-400 mb-1">{error}</p>
+          <p className="text-stone-500 text-sm">Could not find this song automatically.</p>
+        </div>
+      )}
+
+      {showManual && (
+        <div className="bg-stone-900 border border-rose-500 rounded-xl p-5 mb-6">
+          <p className="text-white font-semibold mb-1">Add lyrics manually</p>
+          <p className="text-stone-400 text-sm mb-4">Paste the Chinese lyrics below. App will generate pinyin + English and save it.</p>
+          <textarea
+            className="w-full bg-stone-800 border border-stone-700 rounded-lg px-4 py-3 text-white placeholder-stone-500 focus:outline-none focus:border-rose-400 h-48 resize-none"
+            placeholder="Paste lyrics here, one line per line..."
+            value={manualLyrics}
+            onChange={e => setManualLyrics(e.target.value)}
+          />
+          <button
+            onClick={submitManual}
+            disabled={manualLoading || !manualLyrics.trim()}
+            className="mt-3 w-full bg-rose-500 hover:bg-rose-400 py-3 rounded-lg font-semibold transition-colors disabled:opacity-50"
+          >
+            {manualLoading ? 'Processing...' : 'Generate & Save'}
+          </button>
+        </div>
+      )}
 
       {result && (
         <div>
