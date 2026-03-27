@@ -153,9 +153,9 @@ export default function Home() {
   return (
     <main className="min-h-screen text-gray-700" style={{background: '#fce8e8'}}>
       {/* Header layers */}
-      <div style={{background: '#f4a7a7', height: '12px'}} />
-      <div style={{background: '#c9b0b0', height: '10px'}} />
-      <div style={{background: '#f7d5d5', height: '8px'}} />
+
+
+
       <div style={{background: '#fff', padding: '16px 24px 12px'}}>
         <h1 style={{color: '#b06070', fontSize: '22px', fontWeight: 700}}>Lyric Translator</h1>
         <p style={{color: '#b0a0a0', fontSize: '13px'}}>Simplified Chinese · Pinyin · English</p>
