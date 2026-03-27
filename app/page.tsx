@@ -151,9 +151,9 @@ export default function Home() {
   }
 
   return (
-    <main className="min-h-screen bg-pink-50 text-gray-800 p-6 max-w-2xl mx-auto pb-20">
-      <h1 className="text-2xl font-bold mb-1 text-pink-600">Lyric Translator</h1>
-      <p className="text-gray-400 mb-4 text-sm">Simplified Chinese · Pinyin · English</p>
+    <main className="min-h-screen bg-pink-50 text-gray-800 max-w-2xl mx-auto pb-20">
+      
+      
 
       <div className="flex gap-2 mb-4">
         <button onClick={() => setView('search')} className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${view === 'search' ? 'bg-pink-500 text-white' : 'bg-white text-gray-400 border border-pink-200'}`}>Search</button>
