@@ -135,6 +135,23 @@ export default function SettingsPage() {
           <p style={{fontFamily: 'Work Sans, sans-serif', fontSize: '12px', color: '#7f7478', marginTop: '16px', textTransform: 'uppercase', letterSpacing: '0.1em'}}>版本 1.0 · Next.js + Supabase</p>
         </div>
 
+
+        <div style={{backgroundColor: '#fff0f4', borderRadius: '16px', padding: '32px'}}>
+          <h3 style={{fontFamily: 'Newsreader, serif', fontSize: '22px', color: '#bc004b', marginBottom: '24px', display: 'flex', alignItems: 'center', gap: '8px'}}>
+            <span className="material-symbols-outlined">account_circle</span>
+            账户
+          </h3>
+          <button onClick={async () => {
+            const { supabase } = await import('../../lib/supabase')
+            await supabase.auth.signOut()
+          }} style={{
+            width: '100%', backgroundColor: 'transparent', color: '#bc004b',
+            border: '1px solid #bc004b', borderRadius: '8px', padding: '14px',
+            fontFamily: 'Work Sans, sans-serif', fontSize: '13px', fontWeight: 600,
+            letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer'
+          }}>退出登录</button>
+        </div>
+
       </section>
     </main>
   )

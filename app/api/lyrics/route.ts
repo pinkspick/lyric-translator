@@ -11,6 +11,18 @@ async function searchLrcLib(query: string) {
   } catch { return null }
 }
 
+async function toSimplified(text: string): Promise<string> {
+  try {
+    const res = await fetch(
+      'https://api.mymemory.translated.net/get?q=' + encodeURIComponent(text) + '&langpair=zh-TW|zh-CN'
+    )
+    const data = await res.json()
+    const result = data.responseData?.translatedText || text
+    if (result.toUpperCase().includes('LIMIT') || result.toUpperCase().includes('MYMEMORY')) return text
+    return result
+  } catch { return text }
+}
+
 async function translateLine(line: string): Promise<string> {
   if (!line.trim()) return ''
   try {
@@ -19,7 +31,7 @@ async function translateLine(line: string): Promise<string> {
     )
     const data = await res.json()
     const text = data.responseData?.translatedText || ''
-    if (text.toUpperCase().includes('QUERY LENGTH') || text.toUpperCase().includes('LIMIT EXCEEDED') || text.toUpperCase().includes('MYMEMORY')) return ''
+    if (text.toUpperCase().includes('QUERY LENGTH') || text.toUpperCase().includes('LIMIT') || text.toUpperCase().includes('MYMEMORY')) return ''
     return text
   } catch { return '' }
 }
@@ -42,9 +54,18 @@ export async function GET(request: NextRequest) {
     if (!result || !result.lyrics) {
       return NextResponse.json({ error: '未找到歌曲，请尝试添加歌手名称或手动添加歌词' }, { status: 404 })
     }
-    lines = result.lyrics.split('\n').filter((l: string) => l.trim() !== '')
+    const rawLines = result.lyrics.split('\n').filter((l: string) => l.trim() !== '')
     title = result.title
     artist = result.artist
+
+    // Convert Traditional to Simplified in batches of 5 lines
+    const simplified: string[] = []
+    for (let i = 0; i < rawLines.length; i += 5) {
+      const chunk = rawLines.slice(i, i + 5)
+      const results = await Promise.all(chunk.map(toSimplified))
+      simplified.push(...results)
+    }
+    lines = simplified
   }
 
   if (lines.length === 0) {
