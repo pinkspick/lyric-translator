@@ -15,11 +15,11 @@ async function translateLine(line: string): Promise<string> {
   if (!line.trim()) return ''
   try {
     const res = await fetch(
-      'https://api.mymemory.translated.net/get?q=' + encodeURIComponent(line) + '&langpair=zh|en'
+      'https://api.mymemory.translated.net/get?q=' + encodeURIComponent(line.slice(0, 200)) + '&langpair=zh|en'
     )
     const data = await res.json()
     const text = data.responseData?.translatedText || ''
-    if (text.includes('QUERY LENGTH') || text.includes('LIMIT EXCEEDED') || text.includes('MYMEMORY')) return ''
+    if (text.toUpperCase().includes('QUERY LENGTH') || text.toUpperCase().includes('LIMIT EXCEEDED') || text.toUpperCase().includes('MYMEMORY')) return ''
     return text
   } catch { return '' }
 }
@@ -55,12 +55,13 @@ export async function GET(request: NextRequest) {
     pinyin(line, { toneType: 'symbol', separator: ' ' })
   )
 
-  // Translate all lines with small delay between each
-  const englishLines: string[] = []
-  for (const line of lines) {
-    const translated = await translateLine(line)
-    englishLines.push(translated)
-    await new Promise(r => setTimeout(r, 150))
+  // Translate in parallel batches of 4
+  const batchSize = 4
+  const englishLines: string[] = new Array(lines.length).fill('')
+  for (let i = 0; i < lines.length; i += batchSize) {
+    const batch = lines.slice(i, i + batchSize)
+    const results = await Promise.all(batch.map(translateLine))
+    results.forEach((r, j) => { englishLines[i + j] = r })
   }
 
   return NextResponse.json({ title, artist, simplified: lines, pinyin: pinyinLines, english: englishLines })
