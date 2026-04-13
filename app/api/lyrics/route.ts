@@ -11,6 +11,32 @@ async function searchLrcLib(query: string) {
   } catch { return null }
 }
 
+async function translateBatch(lines: string[]): Promise<string[]> {
+  const results: string[] = []
+  const chunkSize = 5
+  for (let i = 0; i < lines.length && i < 40; i += chunkSize) {
+    const chunk = lines.slice(i, i + chunkSize)
+    try {
+      const combined = chunk.join(' || ')
+      const res = await fetch(
+        'https://api.mymemory.translated.net/get?q=' + encodeURIComponent(combined) + '&langpair=zh|en'
+      )
+      const data = await res.json()
+      const translated = data.responseData?.translatedText || ''
+      if (translated.includes('QUERY LENGTH') || translated.includes('LIMIT EXCEEDED')) {
+        chunk.forEach(() => results.push(''))
+      } else {
+        const parts = translated.split(' || ')
+        chunk.forEach((_: string, j: number) => results.push(parts[j]?.trim() || ''))
+      }
+    } catch {
+      chunk.forEach(() => results.push(''))
+    }
+    await new Promise(r => setTimeout(r, 300))
+  }
+  return results
+}
+
 export async function GET(request: NextRequest) {
   const query = request.nextUrl.searchParams.get('q')
   const manual = request.nextUrl.searchParams.get('manual')
@@ -22,12 +48,12 @@ export async function GET(request: NextRequest) {
 
   if (manual === 'true') {
     lines = query.split('\n').filter((l: string) => l.trim() !== '')
-    title = 'Manual Entry'
+    title = '手动添加'
     artist = ''
   } else {
     const result = await searchLrcLib(query)
     if (!result || !result.lyrics) {
-      return NextResponse.json({ error: 'Song not found. Try including the artist name, or add lyrics manually.' }, { status: 404 })
+      return NextResponse.json({ error: '未找到歌曲，请尝试添加歌手名称或手动添加歌词' }, { status: 404 })
     }
     lines = result.lyrics.split('\n').filter((l: string) => l.trim() !== '')
     title = result.title
@@ -35,27 +61,14 @@ export async function GET(request: NextRequest) {
   }
 
   if (lines.length === 0) {
-    return NextResponse.json({ error: 'No lyrics found.' }, { status: 404 })
+    return NextResponse.json({ error: '未找到歌词' }, { status: 404 })
   }
 
   const pinyinLines = lines.map((line: string) =>
     pinyin(line, { toneType: 'symbol', separator: ' ' })
   )
 
-  // Batch translate all lines at once - much faster
-  let englishLines: string[] = lines.map(() => '')
-  try {
-    const combined = lines.slice(0, 40).join(' | ')
-    const res = await fetch(
-      'https://api.mymemory.translated.net/get?q=' + encodeURIComponent(combined) + '&langpair=zh|en'
-    )
-    const data = await res.json()
-    const translated = data.responseData?.translatedText || ''
-    const parts = translated.split(' | ')
-    englishLines = lines.map((_: string, i: number) => parts[i]?.trim() || '')
-  } catch {
-    englishLines = lines.map(() => '')
-  }
+  const englishLines = await translateBatch(lines)
 
   return NextResponse.json({ title, artist, simplified: lines, pinyin: pinyinLines, english: englishLines })
 }

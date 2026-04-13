@@ -277,17 +277,17 @@ export default function LyricsPage() {
                   {colored.map((syl, j) => (
                     <span key={j} style={{
                       fontFamily: 'Work Sans, sans-serif', fontSize: '13px',
-                      color: syl.color, marginRight: '4px', fontStyle: 'italic'
+                      color: syl.color, marginRight: '4px'
                     }}>{syl.text}</span>
                   ))}
                 </p>
               )}
 
-              {viewMode === 'full' && (
+              {viewMode === 'full' && song.english[i] && !song.english[i].includes('QUERY') && !song.english[i].includes('LIMIT') && (
                 <p style={{
                   fontFamily: 'Newsreader, serif', fontSize: '12px',
                   color: '#4d4447', fontStyle: 'italic', lineHeight: 1.5
-                }}>{song.english[i] || ''}</p>
+                }}>{song.english[i]}</p>
               )}
             </div>
           )

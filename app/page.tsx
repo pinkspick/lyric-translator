@@ -129,29 +129,7 @@ export default function SearchPage() {
         </section>
       )}
 
-      <section style={{padding: '0 24px'}}>
-        <div style={{backgroundColor: '#fff0f4', borderRadius: '16px', padding: '24px'}}>
-          <h3 style={{fontFamily: 'Newsreader, serif', fontSize: '18px', marginBottom: '12px', color: '#bc004b'}}>声调颜色说明</h3>
-          <div style={{display: 'flex', gap: '16px', flexWrap: 'wrap'}}>
-            {[
-              {tone: '第一声', ex: 'ā', color: '#e53935'},
-              {tone: '第二声', ex: 'á', color: '#fb8c00'},
-              {tone: '第三声', ex: 'ǎ', color: '#f9a825'},
-              {tone: '第四声', ex: 'à', color: '#1e88e5'},
-              {tone: '轻声', ex: 'a', color: '#c07a8a'},
-            ].map(t => (
-              <div key={t.tone} style={{display: 'flex', alignItems: 'center', gap: '6px'}}>
-                <span style={{
-                  width: '12px', height: '12px', borderRadius: '50%',
-                  backgroundColor: t.color, display: 'inline-block'
-                }} />
-                <span style={{fontFamily: 'Work Sans, sans-serif', fontSize: '12px', color: '#4d4447'}}>{t.tone} </span>
-                <span style={{fontFamily: 'Work Sans, sans-serif', fontSize: '14px', color: t.color, fontWeight: 600}}>{t.ex}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
+
     </main>
   )
 }
