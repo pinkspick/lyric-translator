@@ -80,7 +80,7 @@ export default function ArchivePage() {
       <section style={{padding: '96px 24px 32px'}}>
         <span style={{fontFamily: 'Work Sans, sans-serif', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.2em', color: '#4d4447', display: 'block', marginBottom: '8px'}}>Personal Anthology</span>
         <h2 style={{fontFamily: 'Newsreader, serif', fontSize: '48px', fontWeight: 700, lineHeight: 1.1, marginBottom: '8px'}}>Your Archive</h2>
-        <p style={{fontFamily: 'Newsreader, serif', fontStyle: 'italic', fontSize: '18px', color: '#4d4447'}}>{history.length} songs saved</p>
+        <p style={{fontFamily: 'Newsreader, serif', fontStyle: 'italic', fontSize: '18px', color: '#4d4447'}}>{history.length} 首歌曲已保存</p>
       </section>
 
       <section style={{padding: '0 24px'}}>

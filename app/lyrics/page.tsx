@@ -14,6 +14,14 @@ type LyricResult = {
 
 type ViewMode = 'full' | 'pinyin' | 'hanzi'
 
+type SearchResult = {
+  id: number
+  title: string
+  artist: string
+  album: string
+  hasLyrics: boolean
+}
+
 type QuizQuestion = {
   character: string
   pinyin: string
@@ -24,6 +32,9 @@ export default function LyricsPage() {
   const [song, setSong] = useState<LyricResult | null>(null)
   const [viewMode, setViewMode] = useState<ViewMode>('full')
   const [showQuiz, setShowQuiz] = useState(false)
+  const [showWrongLyrics, setShowWrongLyrics] = useState(false)
+  const [searchResults, setSearchResults] = useState<SearchResult[]>([])
+  const [loadingAlternate, setLoadingAlternate] = useState(false)
   const [questions, setQuestions] = useState<QuizQuestion[]>([])
   const [currentQ, setCurrentQ] = useState(0)
   const [score, setScore] = useState(0)
@@ -34,7 +45,17 @@ export default function LyricsPage() {
 
   useEffect(() => {
     const stored = localStorage.getItem('current_song')
-    if (stored) setSong(JSON.parse(stored))
+    if (stored) {
+      const parsed = JSON.parse(stored)
+      setSong(parsed)
+      // Fetch alternate results in background
+      if (parsed.title) {
+        fetch('/api/search?q=' + encodeURIComponent(parsed.title))
+          .then(r => r.json())
+          .then(d => setSearchResults(d.results || []))
+          .catch(() => {})
+      }
+    }
   }, [])
 
   useEffect(() => {
@@ -43,6 +64,27 @@ export default function LyricsPage() {
     const t = setTimeout(() => setTimeLeft(t => t - 1), 1000)
     return () => clearTimeout(t)
   }, [showQuiz, timeLeft, answered, quizDone])
+
+  async function loadAlternate(track: SearchResult) {
+    setLoadingAlternate(true)
+    setShowWrongLyrics(false)
+    const res = await fetch('/api/lyrics?q=' + encodeURIComponent(track.title + ' ' + track.artist))
+    const data = await res.json()
+    if (res.ok) {
+      const finalResult = { ...data, title: track.title, artist: track.artist }
+      setSong(finalResult)
+      const cacheKey = 'lyric_' + (song?.title || track.title).trim().toLowerCase()
+      const json = JSON.stringify(finalResult)
+      localStorage.setItem(cacheKey, json)
+      localStorage.setItem('current_song', json)
+      try {
+        await supabase.from('songs').upsert({
+          cache_key: cacheKey, data: json, updated_at: new Date().toISOString()
+        }, { onConflict: 'cache_key' })
+      } catch {}
+    }
+    setLoadingAlternate(false)
+  }
 
   function generateQuiz(song: LyricResult) {
     const toneMarks: Record<string, number> = {
@@ -127,7 +169,7 @@ export default function LyricsPage() {
   )
 
   if (showQuiz) return (
-    <main style={{paddingBottom: '120px', maxWidth: '600px', margin: '0 auto', padding: '24px'}}>
+    <main style={{maxWidth: '600px', margin: '0 auto', padding: '24px', paddingBottom: '120px'}}>
       <header style={{
         position: 'fixed', top: 0, left: 0, width: '100%', zIndex: 50,
         backgroundColor: '#fff8f8', display: 'flex', justifyContent: 'space-between',
@@ -163,32 +205,15 @@ export default function LyricsPage() {
           </div>
         ) : questions[currentQ] ? (
           <div style={{textAlign: 'center'}}>
-            <div style={{
-              backgroundColor: '#fff0f4', borderRadius: '24px',
-              padding: '48px 32px', marginBottom: '32px'
-            }}>
-              <p style={{
-                fontFamily: 'Newsreader, serif', fontSize: '80px',
-                fontWeight: 700, margin: '0 0 16px', color: '#25181e'
-              }}>{questions[currentQ].character}</p>
-              <p style={{
-                fontFamily: 'Work Sans, sans-serif', fontSize: '20px',
-                color: '#bc004b', margin: 0, fontStyle: 'italic'
-              }}>{questions[currentQ].pinyin}</p>
+            <div style={{backgroundColor: '#fff0f4', borderRadius: '24px', padding: '48px 32px', marginBottom: '32px'}}>
+              <p style={{fontFamily: 'Newsreader, serif', fontSize: '80px', fontWeight: 700, margin: '0 0 16px', color: '#25181e'}}>{questions[currentQ].character}</p>
+              <p style={{fontFamily: 'Work Sans, sans-serif', fontSize: '20px', color: '#bc004b', margin: 0}}>{questions[currentQ].pinyin}</p>
             </div>
-
-            <div style={{
-              display: 'flex', justifyContent: 'center', marginBottom: '24px',
-              gap: '8px'
-            }}>
+            <div style={{display: 'flex', justifyContent: 'center', marginBottom: '24px', gap: '8px'}}>
               {[5,4,3,2,1].map(n => (
-                <div key={n} style={{
-                  width: '8px', height: '8px', borderRadius: '50%',
-                  backgroundColor: n <= timeLeft ? '#bc004b' : '#f4dce4'
-                }} />
+                <div key={n} style={{width: '8px', height: '8px', borderRadius: '50%', backgroundColor: n <= timeLeft ? '#bc004b' : '#f4dce4'}} />
               ))}
             </div>
-
             <div style={{display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px'}}>
               {[1,2,3,4].map(tone => {
                 let bg = '#fff0f4'
@@ -199,10 +224,8 @@ export default function LyricsPage() {
                 }
                 return (
                   <button key={tone} onClick={() => handleAnswer(tone)} style={{
-                    backgroundColor: bg, color, border: 'none',
-                    borderRadius: '12px', padding: '20px',
-                    fontFamily: 'Work Sans, sans-serif', fontSize: '16px',
-                    fontWeight: 600, cursor: 'pointer', transition: 'all 0.2s'
+                    backgroundColor: bg, color, border: 'none', borderRadius: '12px', padding: '20px',
+                    fontFamily: 'Work Sans, sans-serif', fontSize: '16px', fontWeight: 600, cursor: 'pointer'
                   }}>
                     <span style={{fontSize: '24px', display: 'block', marginBottom: '4px'}}>
                       {tone === 1 ? 'ā' : tone === 2 ? 'á' : tone === 3 ? 'ǎ' : 'à'}
@@ -231,11 +254,11 @@ export default function LyricsPage() {
           </button>
           <h1 style={{fontFamily: 'Newsreader, serif', fontStyle: 'italic', fontSize: '20px', color: '#bc004b', margin: 0}}>乐译</h1>
         </div>
-        <div style={{display: 'flex', gap: '8px'}}>
+        <div style={{display: 'flex', gap: '8px', alignItems: 'center'}}>
           <button onClick={startQuiz} style={{
             backgroundColor: '#fff0f4', color: '#bc004b', border: 'none',
             borderRadius: '8px', padding: '8px 12px',
-            fontFamily: 'Work Sans, sans-serif', fontSize: '12px', cursor: 'pointer'
+            fontFamily: 'Work Sans, sans-serif', fontSize: '12px', cursor: 'pointer', fontWeight: 600
           }}>测验</button>
           <button onClick={saveSong} style={{background: 'none', border: 'none', cursor: 'pointer'}}>
             <span className="material-symbols-outlined" style={{color: '#bc004b'}}>bookmark_add</span>
@@ -246,7 +269,32 @@ export default function LyricsPage() {
       <section style={{padding: '80px 24px 24px'}}>
         <span style={{fontFamily: 'Work Sans, sans-serif', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.2em', color: '#b90c55', display: 'block', marginBottom: '8px'}}>正在播放</span>
         <h2 style={{fontFamily: 'Newsreader, serif', fontSize: '36px', fontWeight: 700, lineHeight: 1.1, marginBottom: '8px'}}>{song.title}</h2>
-        <p style={{fontFamily: 'Newsreader, serif', fontStyle: 'italic', fontSize: '18px', color: '#ab2c5d', marginBottom: '24px'}}>{song.artist}</p>
+        <div style={{display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '24px'}}>
+          <p style={{fontFamily: 'Newsreader, serif', fontStyle: 'italic', fontSize: '18px', color: '#ab2c5d', margin: 0}}>{song.artist}</p>
+          {searchResults.length > 1 && (
+            <button onClick={() => setShowWrongLyrics(!showWrongLyrics)} style={{
+              backgroundColor: 'transparent', color: '#7f7478', border: '1px solid #d0c3c7',
+              borderRadius: '6px', padding: '4px 10px',
+              fontFamily: 'Work Sans, sans-serif', fontSize: '11px', cursor: 'pointer'
+            }}>歌词有误？</button>
+          )}
+        </div>
+
+        {showWrongLyrics && (
+          <div style={{backgroundColor: '#fff0f4', borderRadius: '12px', padding: '16px', marginBottom: '24px'}}>
+            <p style={{fontFamily: 'Work Sans, sans-serif', fontSize: '12px', color: '#4d4447', marginBottom: '12px', textTransform: 'uppercase', letterSpacing: '0.1em'}}>选择正确版本：</p>
+            {loadingAlternate && <p style={{fontFamily: 'Newsreader, serif', fontStyle: 'italic', color: '#4d4447'}}>加载中...</p>}
+            {searchResults.map(track => (
+              <button key={track.id} onClick={() => loadAlternate(track)} style={{
+                width: '100%', textAlign: 'left', backgroundColor: '#fff', border: '1px solid #f0d8d8',
+                borderRadius: '8px', padding: '12px 16px', marginBottom: '8px', cursor: 'pointer'
+              }}>
+                <p style={{fontFamily: 'Newsreader, serif', fontSize: '16px', fontWeight: 700, margin: '0 0 4px'}}>{track.title}</p>
+                <p style={{fontFamily: 'Work Sans, sans-serif', fontSize: '11px', color: '#7f7478', margin: 0, textTransform: 'uppercase'}}>{track.artist}{track.album ? ' · ' + track.album : ''}</p>
+              </button>
+            ))}
+          </div>
+        )}
 
         <div style={{display: 'flex', gap: '8px', marginBottom: '32px'}}>
           {viewButtons.map(btn => (
@@ -256,7 +304,7 @@ export default function LyricsPage() {
               color: viewMode === btn.mode ? '#fff' : '#bc004b',
               border: 'none', borderRadius: '8px',
               fontFamily: 'Work Sans, sans-serif', fontSize: '13px',
-              fontWeight: 600, cursor: 'pointer', transition: 'all 0.2s'
+              fontWeight: 600, cursor: 'pointer'
             }}>{btn.label}</button>
           ))}
         </div>
@@ -267,27 +315,16 @@ export default function LyricsPage() {
           const colored = colorPinyinLine(song.pinyin[i] || '')
           return (
             <div key={i} style={{marginBottom: '32px'}}>
-              <p style={{
-                fontFamily: 'Newsreader, serif', fontSize: '22px',
-                fontWeight: 700, color: '#25181e', marginBottom: '6px', lineHeight: 1.4
-              }}>{line}</p>
-
+              <p style={{fontFamily: 'Newsreader, serif', fontSize: '22px', fontWeight: 700, color: '#25181e', marginBottom: '6px', lineHeight: 1.4}}>{line}</p>
               {viewMode !== 'hanzi' && (
                 <p style={{marginBottom: '6px', lineHeight: 1.6}}>
                   {colored.map((syl, j) => (
-                    <span key={j} style={{
-                      fontFamily: 'Work Sans, sans-serif', fontSize: '13px',
-                      color: syl.color, marginRight: '4px'
-                    }}>{syl.text}</span>
+                    <span key={j} style={{fontFamily: 'Work Sans, sans-serif', fontSize: '13px', color: syl.color, marginRight: '4px'}}>{syl.text}</span>
                   ))}
                 </p>
               )}
-
               {viewMode === 'full' && song.english[i] && !song.english[i].includes('QUERY') && !song.english[i].includes('LIMIT') && (
-                <p style={{
-                  fontFamily: 'Newsreader, serif', fontSize: '12px',
-                  color: '#4d4447', fontStyle: 'italic', lineHeight: 1.5
-                }}>{song.english[i]}</p>
+                <p style={{fontFamily: 'Newsreader, serif', fontSize: '12px', color: '#4d4447', fontStyle: 'italic', lineHeight: 1.5}}>{song.english[i]}</p>
               )}
             </div>
           )

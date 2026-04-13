@@ -11,30 +11,17 @@ async function searchLrcLib(query: string) {
   } catch { return null }
 }
 
-async function translateBatch(lines: string[]): Promise<string[]> {
-  const results: string[] = []
-  const chunkSize = 5
-  for (let i = 0; i < lines.length && i < 40; i += chunkSize) {
-    const chunk = lines.slice(i, i + chunkSize)
-    try {
-      const combined = chunk.join(' || ')
-      const res = await fetch(
-        'https://api.mymemory.translated.net/get?q=' + encodeURIComponent(combined) + '&langpair=zh|en'
-      )
-      const data = await res.json()
-      const translated = data.responseData?.translatedText || ''
-      if (translated.includes('QUERY LENGTH') || translated.includes('LIMIT EXCEEDED')) {
-        chunk.forEach(() => results.push(''))
-      } else {
-        const parts = translated.split(' || ')
-        chunk.forEach((_: string, j: number) => results.push(parts[j]?.trim() || ''))
-      }
-    } catch {
-      chunk.forEach(() => results.push(''))
-    }
-    await new Promise(r => setTimeout(r, 300))
-  }
-  return results
+async function translateLine(line: string): Promise<string> {
+  if (!line.trim()) return ''
+  try {
+    const res = await fetch(
+      'https://api.mymemory.translated.net/get?q=' + encodeURIComponent(line) + '&langpair=zh|en'
+    )
+    const data = await res.json()
+    const text = data.responseData?.translatedText || ''
+    if (text.includes('QUERY LENGTH') || text.includes('LIMIT EXCEEDED') || text.includes('MYMEMORY')) return ''
+    return text
+  } catch { return '' }
 }
 
 export async function GET(request: NextRequest) {
@@ -68,7 +55,13 @@ export async function GET(request: NextRequest) {
     pinyin(line, { toneType: 'symbol', separator: ' ' })
   )
 
-  const englishLines = await translateBatch(lines)
+  // Translate all lines with small delay between each
+  const englishLines: string[] = []
+  for (const line of lines) {
+    const translated = await translateLine(line)
+    englishLines.push(translated)
+    await new Promise(r => setTimeout(r, 150))
+  }
 
   return NextResponse.json({ title, artist, simplified: lines, pinyin: pinyinLines, english: englishLines })
 }
