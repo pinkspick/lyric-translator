@@ -24,9 +24,11 @@ type SearchResult = {
 
 type QuizQuestion = {
   word: string
-  pinyin: string
+  syl1Base: string
+  syl2Base: string
   tone1: number
   tone2: number
+  pinyin: string
 }
 
 type QuizResult = {
@@ -36,24 +38,68 @@ type QuizResult = {
   correct: boolean
 }
 
-const toneColors: Record<number, string> = {
-  1: '#e53935', 2: '#fb8c00', 3: '#2e7d32', 4: '#1e88e5', 0: '#c07a8a'
+const TONES = [
+  { label: '第一声 ā', cls: 't1', tone: 1 },
+  { label: '第二声 á', cls: 't2', tone: 2 },
+  { label: '第三声 ǎ', cls: 't3', tone: 3 },
+  { label: '第四声 à', cls: 't4', tone: 4 },
+  { label: '轻声 a',  cls: 't0', tone: 0 },
+]
+
+const TONE_COLORS: Record<string, { text: string, bg: string, headerText: string }> = {
+  t1: { text: '#0C447C', bg: '#B5D4F4', headerText: '#042C53' },
+  t2: { text: '#27500A', bg: '#C0DD97', headerText: '#173404' },
+  t3: { text: '#854F0B', bg: '#FAC775', headerText: '#412402' },
+  t4: { text: '#791F1F', bg: '#F09595', headerText: '#501313' },
+  t0: { text: '#444441', bg: '#D3D1C7', headerText: '#2C2C2A' },
 }
 
-const toneMarks: Record<string, number> = {
-  'ā':1,'ē':1,'ī':1,'ō':1,'ū':1,'Ā':1,'Ē':1,'Ī':1,'Ō':1,'Ū':1,
-  'á':2,'é':2,'í':2,'ó':2,'ú':2,'Á':2,'É':2,'Í':2,'Ó':2,'Ú':2,
-  'ǎ':3,'ě':3,'ǐ':3,'ǒ':3,'ǔ':3,'Ǎ':3,'Ě':3,'Ǐ':3,'Ǒ':3,'Ǔ':3,
-  'à':4,'è':4,'ì':4,'ò':4,'ù':4,'À':4,'È':4,'Ì':4,'Ò':4,'Ù':4,
+const toneMarkMap: Record<string, string> = {
+  'ā':'a','á':'a','ǎ':'a','à':'a',
+  'ē':'e','é':'e','ě':'e','è':'e',
+  'ī':'i','í':'i','ǐ':'i','ì':'i',
+  'ō':'o','ó':'o','ǒ':'o','ò':'o',
+  'ū':'u','ú':'u','ǔ':'u','ù':'u',
+  'ǖ':'ü','ǘ':'ü','ǚ':'ü','ǜ':'ü',
 }
 
-const toneSymbols = ['', 'ā', 'á', 'ǎ', 'à']
-const toneNames = ['', '一', '二', '三', '四']
+const toneVowelMap: Record<string, string[]> = {
+  'a': ['a','ā','á','ǎ','à'],
+  'e': ['e','ē','é','ě','è'],
+  'i': ['i','ī','í','ǐ','ì'],
+  'o': ['o','ō','ó','ǒ','ò'],
+  'u': ['u','ū','ú','ǔ','ù'],
+  'ü': ['ü','ǖ','ǘ','ǚ','ǜ'],
+}
+
+const toneMarkDetect: Record<string, number> = {
+  'ā':1,'ē':1,'ī':1,'ō':1,'ū':1,'ǖ':1,
+  'á':2,'é':2,'í':2,'ó':2,'ú':2,'ǘ':2,
+  'ǎ':3,'ě':3,'ǐ':3,'ǒ':3,'ǔ':3,'ǚ':3,
+  'à':4,'è':4,'ì':4,'ò':4,'ù':4,'ǜ':4,
+}
+
+function stripTone(syl: string): string {
+  return syl.split('').map(c => toneMarkMap[c] || c).join('')
+}
+
+function applyTone(base: string, tone: number): string {
+  if (tone === 0) return base
+  const vowels = ['a','e','i','o','u','ü']
+  for (const v of vowels) {
+    if (base.includes(v)) {
+      return base.replace(v, toneVowelMap[v]?.[tone] || v)
+    }
+  }
+  return base
+}
 
 function getSyllableTone(syl: string): number {
-  for (const ch of syl) { if (toneMarks[ch]) return toneMarks[ch] }
+  for (const ch of syl) { if (toneMarkDetect[ch]) return toneMarkDetect[ch] }
   return 0
 }
+
+const STAGE_SIZE = 10
 
 export default function LyricsPage() {
   const [song, setSong] = useState<LyricResult | null>(null)
@@ -67,12 +113,12 @@ export default function LyricsPage() {
   const [stage, setStage] = useState(0)
   const [currentQ, setCurrentQ] = useState(0)
   const [stageResults, setStageResults] = useState<QuizResult[]>([])
-  const [answered, setAnswered] = useState<{t1: number, t2: number} | null>(null)
+  const [selected, setSelected] = useState<string | null>(null)
+  const [answered, setAnswered] = useState(false)
   const [timeLeft, setTimeLeft] = useState(10)
   const timerRef = useRef<NodeJS.Timeout | null>(null)
   const router = useRouter()
 
-  const STAGE_SIZE = 10
   const stageQuestions = allQuestions.slice(stage * STAGE_SIZE, (stage + 1) * STAGE_SIZE)
   const totalStages = Math.ceil(allQuestions.length / STAGE_SIZE)
 
@@ -89,7 +135,7 @@ export default function LyricsPage() {
   }, [])
 
   useEffect(() => {
-    if (!showQuiz || showSummary || answered !== null) return
+    if (!showQuiz || showSummary || answered) return
     if (timeLeft <= 0) { handleAnswer(0, 0); return }
     timerRef.current = setTimeout(() => setTimeLeft(t => t - 1), 1000)
     return () => { if (timerRef.current) clearTimeout(timerRef.current) }
@@ -106,9 +152,16 @@ export default function LyricsPage() {
         if (word.length < 2 || seen.has(word) || !/[\u4e00-\u9fff]/.test(word)) continue
         const t1 = getSyllableTone(syllables[j])
         const t2 = getSyllableTone(syllables[j + 1])
-        if (t1 === 0 || t2 === 0) continue
+        if (t1 === 0) continue
         seen.add(word)
-        qs.push({ word, pinyin: syllables[j] + ' ' + syllables[j + 1], tone1: t1, tone2: t2 })
+        qs.push({
+          word,
+          syl1Base: stripTone(syllables[j]),
+          syl2Base: stripTone(syllables[j + 1]),
+          tone1: t1,
+          tone2: t2,
+          pinyin: syllables[j] + ' ' + syllables[j + 1]
+        })
       }
     }
     return qs.sort(() => Math.random() - 0.5)
@@ -121,18 +174,21 @@ export default function LyricsPage() {
     setStage(0)
     setCurrentQ(0)
     setStageResults([])
-    setAnswered(null)
+    setSelected(null)
+    setAnswered(false)
     setTimeLeft(10)
     setShowSummary(false)
     setShowQuiz(true)
   }
 
   function handleAnswer(t1: number, t2: number) {
-    if (answered !== null) return
+    if (answered) return
     if (timerRef.current) clearTimeout(timerRef.current)
+    const key = t1 + '-' + t2
+    setSelected(key)
+    setAnswered(true)
     const q = stageQuestions[currentQ]
     const correct = t1 === q.tone1 && t2 === q.tone2
-    setAnswered({ t1, t2 })
     const newResults = [...stageResults, { question: q, chosenTone1: t1, chosenTone2: t2, correct }]
     setStageResults(newResults)
     setTimeout(() => {
@@ -140,17 +196,19 @@ export default function LyricsPage() {
         setShowSummary(true)
       } else {
         setCurrentQ(q => q + 1)
-        setAnswered(null)
+        setSelected(null)
+        setAnswered(false)
         setTimeLeft(10)
       }
-    }, 1200)
+    }, 1400)
   }
 
   function nextStage() {
     setStage(s => s + 1)
     setCurrentQ(0)
     setStageResults([])
-    setAnswered(null)
+    setSelected(null)
+    setAnswered(false)
     setTimeLeft(10)
     setShowSummary(false)
   }
@@ -162,12 +220,10 @@ export default function LyricsPage() {
       localStorage.setItem('vocab_list', JSON.stringify(existing))
       try {
         const { data: { user } } = await supabase.auth.getUser()
-        if (user) {
-          await supabase.from('vocab').upsert({ user_id: user.id, word, pinyin, added_at: new Date().toISOString() }, { onConflict: 'user_id,word' })
-        }
+        if (user) await supabase.from('vocab').upsert({ user_id: user.id, word, pinyin, added_at: new Date().toISOString() }, { onConflict: 'user_id,word' })
       } catch {}
       alert(word + ' 已添加到生词本')
-    } else { alert(word + ' 已在生词本中') }
+    } else alert(word + ' 已在生词本中')
   }
 
   async function saveSong() {
@@ -209,7 +265,7 @@ export default function LyricsPage() {
     </main>
   )
 
-  // SUMMARY SCREEN
+  // SUMMARY
   if (showQuiz && showSummary) {
     const correct = stageResults.filter(r => r.correct).length
     const isLastStage = stage + 1 >= totalStages
@@ -219,154 +275,132 @@ export default function LyricsPage() {
           <button onClick={() => { setShowQuiz(false); setShowSummary(false) }} style={{background: 'none', border: 'none', cursor: 'pointer'}}>
             <span className="material-symbols-outlined" style={{color: '#bc004b'}}>arrow_back</span>
           </button>
-          <h1 style={{fontFamily: 'Newsreader, serif', fontStyle: 'italic', fontSize: '20px', color: '#bc004b', margin: 0}}>
-            第 {stage + 1} 关 结果
-          </h1>
+          <h1 style={{fontFamily: 'Newsreader, serif', fontStyle: 'italic', fontSize: '20px', color: '#bc004b', margin: 0}}>第 {stage + 1} 关 结果</h1>
           <span style={{width: '40px'}} />
         </header>
         <div style={{padding: '80px 24px 24px', textAlign: 'center'}}>
           <p style={{fontSize: '56px', marginBottom: '8px'}}>{correct / stageResults.length >= 0.8 ? '🏆' : correct / stageResults.length >= 0.5 ? '👏' : '💪'}</p>
           <h2 style={{fontFamily: 'Newsreader, serif', fontSize: '32px', marginBottom: '4px'}}>{correct} / {stageResults.length} 正确</h2>
-          <p style={{fontFamily: 'Work Sans, sans-serif', fontSize: '13px', color: '#4d4447', marginBottom: '8px'}}>第 {stage + 1} 关 / 共 {totalStages} 关</p>
+          <p style={{fontFamily: 'Work Sans, sans-serif', fontSize: '13px', color: '#4d4447', marginBottom: '4px'}}>第 {stage + 1} 关 / 共 {totalStages} 关</p>
           <p style={{fontFamily: 'Work Sans, sans-serif', fontSize: '13px', color: '#bc004b', marginBottom: '32px', fontWeight: 600}}>正确率 {Math.round(correct / stageResults.length * 100)}%</p>
-
           <div style={{display: 'flex', gap: '12px', justifyContent: 'center', marginBottom: '40px', flexWrap: 'wrap'}}>
             <button onClick={startQuiz} style={{backgroundColor: '#fff0f4', color: '#bc004b', border: 'none', borderRadius: '8px', padding: '12px 20px', fontFamily: 'Work Sans, sans-serif', cursor: 'pointer', fontSize: '13px', fontWeight: 600}}>重新开始</button>
-            {!isLastStage && (
-              <button onClick={nextStage} style={{backgroundColor: '#bc004b', color: '#fff', border: 'none', borderRadius: '8px', padding: '12px 20px', fontFamily: 'Work Sans, sans-serif', cursor: 'pointer', fontSize: '13px', fontWeight: 600}}>下一关 ({stage + 2}/{totalStages}) →</button>
-            )}
-            {isLastStage && (
-              <button onClick={() => { setShowQuiz(false); setShowSummary(false) }} style={{backgroundColor: '#bc004b', color: '#fff', border: 'none', borderRadius: '8px', padding: '12px 20px', fontFamily: 'Work Sans, sans-serif', cursor: 'pointer', fontSize: '13px', fontWeight: 600}}>完成全部 🎉</button>
-            )}
+            {!isLastStage && <button onClick={nextStage} style={{backgroundColor: '#bc004b', color: '#fff', border: 'none', borderRadius: '8px', padding: '12px 20px', fontFamily: 'Work Sans, sans-serif', cursor: 'pointer', fontSize: '13px', fontWeight: 600}}>下一关 ({stage + 2}/{totalStages}) →</button>}
+            {isLastStage && <button onClick={() => { setShowQuiz(false); setShowSummary(false) }} style={{backgroundColor: '#bc004b', color: '#fff', border: 'none', borderRadius: '8px', padding: '12px 20px', fontFamily: 'Work Sans, sans-serif', cursor: 'pointer', fontSize: '13px', fontWeight: 600}}>完成 🎉</button>}
           </div>
-
           <div style={{textAlign: 'left'}}>
             <h3 style={{fontFamily: 'Newsreader, serif', fontSize: '20px', marginBottom: '16px', color: '#bc004b'}}>本关详情</h3>
-            {stageResults.map((r, i) => (
-              <div key={i} style={{backgroundColor: r.correct ? '#e8f5e9' : '#fce8e8', borderRadius: '12px', padding: '16px', marginBottom: '12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between'}}>
-                <div style={{display: 'flex', alignItems: 'center', gap: '16px'}}>
-                  <span style={{fontSize: '20px'}}>{r.correct ? '✓' : '✗'}</span>
-                  <div>
-                    <p style={{fontFamily: 'Newsreader, serif', fontSize: '28px', fontWeight: 700, margin: '0 0 4px'}}>{r.question.word}</p>
-                    <p style={{fontFamily: 'Work Sans, sans-serif', fontSize: '14px', margin: 0}}>
-                      <span style={{color: toneColors[r.question.tone1], fontWeight: 700}}>{r.question.pinyin}</span>
-                      {!r.correct && r.chosenTone1 > 0 && (
-                        <span style={{color: '#999', fontSize: '12px'}}> · 你选了第{toneNames[r.chosenTone1]}声+第{toneNames[r.chosenTone2]}声</span>
-                      )}
-                      {!r.correct && r.chosenTone1 === 0 && <span style={{color: '#999', fontSize: '12px'}}> · 超时</span>}
-                    </p>
+            {stageResults.map((r, i) => {
+              const correctTone1Cls = TONES.find(t => t.tone === r.question.tone1)?.cls || 't1'
+              const correctTone2Cls = TONES.find(t => t.tone === r.question.tone2)?.cls || 't1'
+              return (
+                <div key={i} style={{backgroundColor: r.correct ? '#e8f5e9' : '#fce8e8', borderRadius: '12px', padding: '16px', marginBottom: '12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between'}}>
+                  <div style={{display: 'flex', alignItems: 'center', gap: '16px'}}>
+                    <span style={{fontSize: '20px'}}>{r.correct ? '✓' : '✗'}</span>
+                    <div>
+                      <p style={{fontFamily: 'Newsreader, serif', fontSize: '28px', fontWeight: 700, margin: '0 0 4px'}}>{r.question.word}</p>
+                      <p style={{fontFamily: 'Work Sans, sans-serif', fontSize: '14px', margin: 0}}>
+                        <span style={{color: TONE_COLORS[correctTone1Cls].text, fontWeight: 700}}>{applyTone(r.question.syl1Base, r.question.tone1)}</span>
+                        {' '}
+                        <span style={{color: TONE_COLORS[correctTone2Cls].text, fontWeight: 700}}>{applyTone(r.question.syl2Base, r.question.tone2)}</span>
+                        {!r.correct && r.chosenTone1 > 0 && <span style={{color: '#999', fontSize: '12px'}}> · 你选了 {applyTone(r.question.syl1Base, r.chosenTone1)} {applyTone(r.question.syl2Base, r.chosenTone2)}</span>}
+                        {!r.correct && r.chosenTone1 === 0 && <span style={{color: '#999', fontSize: '12px'}}> · 超时</span>}
+                      </p>
+                    </div>
                   </div>
+                  {!r.correct && <button onClick={() => saveVocab(r.question.word, r.question.pinyin)} style={{backgroundColor: '#fff', border: '1px solid #bc004b', color: '#bc004b', borderRadius: '8px', padding: '8px 10px', cursor: 'pointer', fontFamily: 'Work Sans, sans-serif', fontSize: '11px', fontWeight: 600, whiteSpace: 'nowrap'}}>+ 生词本</button>}
                 </div>
-                {!r.correct && (
-                  <button onClick={() => saveVocab(r.question.word, r.question.pinyin)} style={{backgroundColor: '#fff', border: '1px solid #bc004b', color: '#bc004b', borderRadius: '8px', padding: '8px 10px', cursor: 'pointer', fontFamily: 'Work Sans, sans-serif', fontSize: '11px', fontWeight: 600, whiteSpace: 'nowrap'}}>+ 生词本</button>
-                )}
-              </div>
-            ))}
+              )
+            })}
           </div>
         </div>
       </main>
     )
   }
 
-  // QUIZ SCREEN
+  // QUIZ
   if (showQuiz && stageQuestions[currentQ]) {
     const q = stageQuestions[currentQ]
+    const timerPct = Math.round((timeLeft / 10) * 100)
     return (
       <main style={{maxWidth: '700px', margin: '0 auto', paddingBottom: '40px'}}>
         <header style={{position: 'fixed', top: 0, left: 0, width: '100%', zIndex: 50, backgroundColor: '#fff8f8', display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px 24px'}}>
           <button onClick={() => setShowQuiz(false)} style={{background: 'none', border: 'none', cursor: 'pointer'}}>
             <span className="material-symbols-outlined" style={{color: '#bc004b'}}>arrow_back</span>
           </button>
-          <h1 style={{fontFamily: 'Newsreader, serif', fontStyle: 'italic', fontSize: '18px', color: '#bc004b', margin: 0}}>
-            第{stage + 1}关 · {currentQ + 1}/{stageQuestions.length}
-          </h1>
-          <span style={{fontFamily: 'Work Sans, sans-serif', fontSize: '13px', color: '#4d4447'}}>{stage + 1}/{totalStages}</span>
+          <h1 style={{fontFamily: 'Newsreader, serif', fontStyle: 'italic', fontSize: '18px', color: '#bc004b', margin: 0}}>第{stage+1}关 · {currentQ+1}/{stageQuestions.length}</h1>
+          <span style={{fontFamily: 'Work Sans, sans-serif', fontSize: '12px', color: '#4d4447'}}>{stage+1}/{totalStages}</span>
         </header>
 
-        <div style={{padding: '72px 16px 16px'}}>
-          <div style={{backgroundColor: '#fff0f4', borderRadius: '20px', padding: '32px 24px 24px', marginBottom: '16px', textAlign: 'center'}}>
-            <p style={{fontFamily: 'Newsreader, serif', fontSize: '80px', fontWeight: 700, margin: '0 0 8px', color: '#25181e', lineHeight: 1}}>{q.word}</p>
-            <p style={{fontFamily: 'Work Sans, sans-serif', fontSize: '20px', margin: 0, letterSpacing: '0.05em',
-              color: answered ? toneColors[q.tone1] : 'transparent'
-            }}>{q.pinyin}</p>
+        <div style={{padding: '80px 16px 16px', fontFamily: 'sans-serif', maxWidth: 700, margin: '0 auto'}}>
+          <div style={{textAlign: 'center', fontSize: 72, fontWeight: 500, letterSpacing: 4, marginBottom: '1.25rem', lineHeight: 1.1}}>
+            {q.word}
           </div>
 
-          <div style={{display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '12px', marginBottom: '16px'}}>
-            <span style={{fontFamily: 'Work Sans, sans-serif', fontSize: '32px', fontWeight: 700, color: timeLeft <= 3 ? '#e53935' : '#bc004b', minWidth: '40px', textAlign: 'center'}}>{timeLeft}</span>
-            <div style={{flex: 1, height: '5px', backgroundColor: '#f4dce4', borderRadius: '3px', maxWidth: '160px'}}>
-              <div style={{height: '100%', backgroundColor: timeLeft <= 3 ? '#e53935' : '#bc004b', borderRadius: '3px', width: (timeLeft / 10 * 100) + '%', transition: 'width 1s linear'}} />
+          <div style={{display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12, marginBottom: '1.5rem'}}>
+            <span style={{fontSize: 22, fontWeight: 500, color: '#993556', minWidth: 24}}>{timeLeft}</span>
+            <div style={{width: 180, height: 4, borderRadius: 2, background: '#e8e6e0', overflow: 'hidden'}}>
+              <div style={{height: 4, borderRadius: 2, background: '#993556', transition: 'width 1s linear', width: timerPct + '%'}} />
             </div>
           </div>
 
-          {/* Tone pair grid - pinyin options */}
-          {(() => {
-            function applyTone(syl: string, tone: number): string {
-              const vowels = ['a','e','i','o','u','ü']
-              const toneMap: Record<string, string[]> = {
-                'a': ['a','ā','á','ǎ','à'], 'e': ['e','ē','é','ě','è'],
-                'i': ['i','ī','í','ǐ','ì'], 'o': ['o','ō','ó','ǒ','ò'],
-                'u': ['u','ū','ú','ǔ','ù'], 'ü': ['ü','ǖ','ǘ','ǚ','ǜ']
-              }
-              if (tone === 0) return syl
-              const clean = syl.replace(/[āáǎàēéěèīíǐìōóǒòūúǔùǖǘǚǜ]/g, (c) => {
-                for (const [base, marks] of Object.entries(toneMap)) {
-                  if (marks.includes(c)) return base
-                }
-                return c
-              })
-              for (const vowel of vowels) {
-                if (clean.includes(vowel)) {
-                  const marked = toneMap[vowel]?.[tone] || vowel
-                  return clean.replace(vowel, marked)
-                }
-              }
-              return syl
-            }
-
-            const syls = q.pinyin.split(' ')
-            const baseSyl1 = syls[0]?.replace(/[āáǎàēéěèīíǐìōóǒòūúǔùǖǘǚǜ]/g, (c) => {
-              const map: Record<string,string> = {'ā':'a','á':'a','ǎ':'a','à':'a','ē':'e','é':'e','ě':'e','è':'e','ī':'i','í':'i','ǐ':'i','ì':'i','ō':'o','ó':'o','ǒ':'o','ò':'o','ū':'u','ú':'u','ǔ':'u','ù':'u'}
-              return map[c] || c
-            }) || ''
-            const baseSyl2 = syls[1]?.replace(/[āáǎàēéěèīíǐìōóǒòūúǔùǖǘǚǜ]/g, (c) => {
-              const map: Record<string,string> = {'ā':'a','á':'a','ǎ':'a','à':'a','ē':'e','é':'e','ě':'e','è':'e','ī':'i','í':'i','ǐ':'i','ì':'i','ō':'o','ó':'o','ǒ':'o','ò':'o','ū':'u','ú':'u','ǔ':'u','ù':'u'}
-              return map[c] || c
-            }) || ''
-
-            return (
-              <div style={{display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '8px'}}>
-                {[1,2,3,4,0,1,2,3,4,0,1,2,3,4,0,1,2,3,4,0].map((t2, idx) => {
-                  const t1 = Math.floor(idx / 5) + 1
-                  const isCorrect = t1 === q.tone1 && t2 === q.tone2
-                  const isChosen = answered && answered.t1 === t1 && answered.t2 === t2
-                  const pinyinOption = applyTone(baseSyl1, t1) + ' ' + applyTone(baseSyl2, t2 === 0 ? 0 : t2)
-                  let bg = '#fff0f4'
-                  let border = '1px solid transparent'
-                  let color = '#25181e'
-                  if (answered) {
-                    if (isCorrect) { bg = toneColors[q.tone1]; color = '#fff'; border = '2px solid ' + toneColors[q.tone1] }
-                    else if (isChosen) { bg = '#ffdad6'; color = '#93000a'; border = '2px solid #e53935' }
-                  }
-                  return (
-                    <button key={idx} onClick={() => handleAnswer(t1, t2)} disabled={answered !== null} style={{
-                      padding: '12px 6px', backgroundColor: bg, color, border,
-                      borderRadius: '10px', fontFamily: 'Work Sans, sans-serif',
-                      fontSize: '13px', fontWeight: 600, cursor: answered ? 'default' : 'pointer',
-                      transition: 'all 0.15s', lineHeight: 1.4, textAlign: 'center'
-                    }}>
-                      {pinyinOption}
-                    </button>
-                  )
-                })}
-              </div>
-            )
-          })()}
+          <div style={{overflowX: 'auto'}}>
+            <table style={{borderCollapse: 'separate', borderSpacing: 5, margin: '0 auto'}}>
+              <thead>
+                <tr>
+                  <th style={{padding: '4px 8px', verticalAlign: 'middle'}}>
+                    <span style={{fontSize: 10, color: '#888', fontWeight: 400}}>{q.word[0]}↓ {q.word[1]}→</span>
+                  </th>
+                  {TONES.map((t, ci) => (
+                    <th key={ci} style={{fontSize: 11, fontWeight: 500, padding: '5px 10px', borderRadius: 6, textAlign: 'center', whiteSpace: 'nowrap', background: TONE_COLORS[t.cls].bg, color: TONE_COLORS[t.cls].headerText}}>
+                      {t.label}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {TONES.map((rowTone, ri) => (
+                  <tr key={ri}>
+                    <th style={{fontSize: 11, fontWeight: 500, padding: '5px 10px', borderRadius: 6, textAlign: 'right', whiteSpace: 'nowrap', background: TONE_COLORS[rowTone.cls].bg, color: TONE_COLORS[rowTone.cls].headerText}}>
+                      {rowTone.label}
+                    </th>
+                    {TONES.map((colTone, ci) => {
+                      const key = rowTone.tone + '-' + colTone.tone
+                      const isSelected = selected === key
+                      const isCorrect = rowTone.tone === q.tone1 && colTone.tone === q.tone2
+                      const s1 = applyTone(q.syl1Base, rowTone.tone)
+                      const s2 = applyTone(q.syl2Base, colTone.tone)
+                      let bg = '#fff'
+                      let border = '0.5px solid rgba(0,0,0,0.12)'
+                      if (answered && isCorrect) { bg = '#e8f5e9'; border = '2px solid #2e7d32' }
+                      else if (answered && isSelected && !isCorrect) { bg = '#fce8e8'; border = '2px solid #e53935' }
+                      else if (isSelected) { bg = '#fbeaf0'; border = '2px solid #993556' }
+                      return (
+                        <td key={ci} style={{padding: 0}}>
+                          <button onClick={() => handleAnswer(rowTone.tone, colTone.tone)} disabled={answered} style={{
+                            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 2,
+                            padding: '8px 10px', borderRadius: 8, border, background: bg,
+                            cursor: answered ? 'default' : 'pointer', minWidth: 96, fontSize: 13,
+                            outline: 'none', transition: 'border-color 0.1s, background 0.1s'
+                          }}>
+                            <span style={{color: TONE_COLORS[rowTone.cls].text, fontWeight: 500}}>{s1}</span>
+                            {' '}
+                            <span style={{color: TONE_COLORS[colTone.cls].text, fontWeight: 500}}>{s2}</span>
+                          </button>
+                        </td>
+                      )
+                    })}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       </main>
     )
   }
 
-  // LYRICS SCREEN
+  // LYRICS
   return (
     <main style={{paddingBottom: '120px', maxWidth: '800px', margin: '0 auto'}}>
       <header style={{position: 'fixed', top: 0, left: 0, width: '100%', zIndex: 50, backgroundColor: '#fff8f8', display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px 24px'}}>
@@ -394,7 +428,6 @@ export default function LyricsPage() {
             <button onClick={() => setShowWrongLyrics(!showWrongLyrics)} style={{backgroundColor: 'transparent', color: '#7f7478', border: '1px solid #d0c3c7', borderRadius: '6px', padding: '4px 10px', fontFamily: 'Work Sans, sans-serif', fontSize: '11px', cursor: 'pointer'}}>歌词有误？</button>
           )}
         </div>
-
         {showWrongLyrics && (
           <div style={{backgroundColor: '#fff0f4', borderRadius: '12px', padding: '16px', marginBottom: '24px'}}>
             <p style={{fontFamily: 'Work Sans, sans-serif', fontSize: '12px', color: '#4d4447', marginBottom: '12px', textTransform: 'uppercase', letterSpacing: '0.1em'}}>选择正确版本：</p>
@@ -407,7 +440,6 @@ export default function LyricsPage() {
             ))}
           </div>
         )}
-
         <div style={{display: 'flex', gap: '8px', marginBottom: '32px'}}>
           {viewButtons.map(btn => (
             <button key={btn.mode} onClick={() => setViewMode(btn.mode)} style={{padding: '8px 20px', backgroundColor: viewMode === btn.mode ? '#bc004b' : '#fff0f4', color: viewMode === btn.mode ? '#fff' : '#bc004b', border: 'none', borderRadius: '8px', fontFamily: 'Work Sans, sans-serif', fontSize: '13px', fontWeight: 600, cursor: 'pointer'}}>{btn.label}</button>
