@@ -47,11 +47,11 @@ const TONES = [
 ]
 
 const TONE_COLORS: Record<string, { text: string, bg: string, headerText: string }> = {
-  t1: { text: '#0C447C', bg: '#B5D4F4', headerText: '#042C53' },
-  t2: { text: '#27500A', bg: '#C0DD97', headerText: '#173404' },
-  t3: { text: '#854F0B', bg: '#FAC775', headerText: '#412402' },
-  t4: { text: '#791F1F', bg: '#F09595', headerText: '#501313' },
-  t0: { text: '#444441', bg: '#D3D1C7', headerText: '#2C2C2A' },
+  t1: { text: '#e53935', bg: '#fde8e8', headerText: '#b71c1c' },
+  t2: { text: '#fb8c00', bg: '#fff3e0', headerText: '#e65100' },
+  t3: { text: '#2e7d32', bg: '#e8f5e9', headerText: '#1b5e20' },
+  t4: { text: '#1e88e5', bg: '#e3f2fd', headerText: '#0d47a1' },
+  t0: { text: '#7f7478', bg: '#f5f5f5', headerText: '#444441' },
 }
 
 const toneMarkMap: Record<string, string> = {
@@ -80,7 +80,7 @@ const toneMarkDetect: Record<string, number> = {
 }
 
 function stripTone(syl: string): string {
-  return syl.split('').map(c => toneMarkMap[c] || c).join('')
+  return syl.split('').map((c: string) => toneMarkMap[c] || c).join('')
 }
 
 function applyTone(base: string, tone: number): string {
@@ -352,7 +352,7 @@ export default function LyricsPage() {
                     <span style={{fontSize: 10, color: '#888', fontWeight: 400}}>{q.word[0]}↓ {q.word[1]}→</span>
                   </th>
                   {TONES.map((t, ci) => (
-                    <th key={ci} style={{fontSize: 11, fontWeight: 500, padding: '5px 10px', borderRadius: 6, textAlign: 'center', whiteSpace: 'nowrap', background: TONE_COLORS[t.cls].bg, color: TONE_COLORS[t.cls].headerText}}>
+                    <th key={ci} style={{fontSize: 11, fontWeight: 500, padding: '4px 6px', borderRadius: 6, textAlign: 'center', whiteSpace: 'nowrap', background: TONE_COLORS[t.cls].bg, color: TONE_COLORS[t.cls].headerText, fontSize: 10}}>
                       {t.label}
                     </th>
                   ))}
@@ -361,7 +361,7 @@ export default function LyricsPage() {
               <tbody>
                 {TONES.map((rowTone, ri) => (
                   <tr key={ri}>
-                    <th style={{fontSize: 11, fontWeight: 500, padding: '5px 10px', borderRadius: 6, textAlign: 'right', whiteSpace: 'nowrap', background: TONE_COLORS[rowTone.cls].bg, color: TONE_COLORS[rowTone.cls].headerText}}>
+                    <th style={{fontSize: 10, fontWeight: 500, padding: '4px 6px', borderRadius: 6, textAlign: 'right', whiteSpace: 'nowrap', background: TONE_COLORS[rowTone.cls].bg, color: TONE_COLORS[rowTone.cls].headerText}}>
                       {rowTone.label}
                     </th>
                     {TONES.map((colTone, ci) => {
@@ -379,8 +379,8 @@ export default function LyricsPage() {
                         <td key={ci} style={{padding: 0}}>
                           <button onClick={() => handleAnswer(rowTone.tone, colTone.tone)} disabled={answered} style={{
                             display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 2,
-                            padding: '8px 10px', borderRadius: 8, border, background: bg,
-                            cursor: answered ? 'default' : 'pointer', minWidth: 96, fontSize: 13,
+                            padding: '6px 4px', borderRadius: 8, border, background: bg,
+                            cursor: answered ? 'default' : 'pointer', minWidth: 60, fontSize: 11,
                             outline: 'none', transition: 'border-color 0.1s, background 0.1s'
                           }}>
                             <span style={{color: TONE_COLORS[rowTone.cls].text, fontWeight: 500}}>{s1}</span>
