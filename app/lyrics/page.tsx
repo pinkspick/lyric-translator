@@ -248,14 +248,12 @@ export default function LyricsPage() {
                   <span style={{fontSize: '20px'}}>{r.correct ? '✓' : '✗'}</span>
                   <div>
                     <p style={{fontFamily: 'Newsreader, serif', fontSize: '28px', fontWeight: 700, margin: '0 0 4px'}}>{r.question.word}</p>
-                    <p style={{fontFamily: 'Work Sans, sans-serif', fontSize: '12px', margin: 0}}>
-                      正确：<span style={{color: toneColors[r.question.tone1], fontWeight: 700}}>第{toneNames[r.question.tone1]}声</span>
-                      {' + '}
-                      <span style={{color: toneColors[r.question.tone2], fontWeight: 700}}>第{toneNames[r.question.tone2]}声</span>
+                    <p style={{fontFamily: 'Work Sans, sans-serif', fontSize: '14px', margin: 0}}>
+                      <span style={{color: toneColors[r.question.tone1], fontWeight: 700}}>{r.question.pinyin}</span>
                       {!r.correct && r.chosenTone1 > 0 && (
-                        <span style={{color: '#999'}}> · 你选了：第{toneNames[r.chosenTone1]}声+第{toneNames[r.chosenTone2]}声</span>
+                        <span style={{color: '#999', fontSize: '12px'}}> · 你选了第{toneNames[r.chosenTone1]}声+第{toneNames[r.chosenTone2]}声</span>
                       )}
-                      {!r.correct && r.chosenTone1 === 0 && <span style={{color: '#999'}}> · 超时</span>}
+                      {!r.correct && r.chosenTone1 === 0 && <span style={{color: '#999', fontSize: '12px'}}> · 超时</span>}
                     </p>
                   </div>
                 </div>
@@ -289,7 +287,7 @@ export default function LyricsPage() {
           <div style={{backgroundColor: '#fff0f4', borderRadius: '20px', padding: '32px 24px 24px', marginBottom: '16px', textAlign: 'center'}}>
             <p style={{fontFamily: 'Newsreader, serif', fontSize: '80px', fontWeight: 700, margin: '0 0 8px', color: '#25181e', lineHeight: 1}}>{q.word}</p>
             <p style={{fontFamily: 'Work Sans, sans-serif', fontSize: '20px', margin: 0, letterSpacing: '0.05em',
-              color: answered ? toneColors[q.tone1] : '#d0c3c7'
+              color: answered ? toneColors[q.tone1] : 'transparent'
             }}>{q.pinyin}</p>
           </div>
 
@@ -300,58 +298,69 @@ export default function LyricsPage() {
             </div>
           </div>
 
-          {/* Tone pair grid - 4x4 */}
-          <div style={{overflowX: 'auto'}}>
-            <table style={{width: '100%', borderCollapse: 'separate', borderSpacing: '6px'}}>
-              <thead>
-                <tr>
-                  <th style={{fontFamily: 'Work Sans, sans-serif', fontSize: '11px', color: '#4d4447', padding: '4px', width: '60px'}}></th>
-                  {[1,2,3,4].map(t2 => (
-                    <th key={t2} style={{fontFamily: 'Work Sans, sans-serif', fontSize: '12px', color: toneColors[t2], padding: '4px', textAlign: 'center', fontWeight: 700}}>
-                      {toneSymbols[t2]}<br/>第{toneNames[t2]}声
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {[1,2,3,4].map(t1 => (
-                  <tr key={t1}>
-                    <td style={{fontFamily: 'Work Sans, sans-serif', fontSize: '12px', color: toneColors[t1], padding: '4px', fontWeight: 700, textAlign: 'center'}}>
-                      {toneSymbols[t1]}<br/>第{toneNames[t1]}声
-                    </td>
-                    {[1,2,3,4].map(t2 => {
-                      const isCorrect = t1 === q.tone1 && t2 === q.tone2
-                      const isChosen = answered && answered.t1 === t1 && answered.t2 === t2
-                      let bg = '#fff0f4'
-                      let border = '1px solid transparent'
-                      let color = '#25181e'
-                      if (answered) {
-                        if (isCorrect) { bg = toneColors[q.tone1]; color = '#fff'; border = '2px solid ' + toneColors[q.tone1] }
-                        else if (isChosen) { bg = '#ffdad6'; color = '#93000a'; border = '2px solid #e53935' }
-                      }
-                      return (
-                        <td key={t2} style={{padding: '3px'}}>
-                          <button
-                            onClick={() => handleAnswer(t1, t2)}
-                            disabled={answered !== null}
-                            style={{
-                              width: '100%', padding: '10px 4px',
-                              backgroundColor: bg, color, border, borderRadius: '8px',
-                              fontFamily: 'Work Sans, sans-serif', fontSize: '11px',
-                              fontWeight: 600, cursor: answered ? 'default' : 'pointer',
-                              transition: 'all 0.15s', lineHeight: 1.3
-                            }}
-                          >
-                            {t1}-{t2}
-                          </button>
-                        </td>
-                      )
-                    })}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          {/* Tone pair grid - pinyin options */}
+          {(() => {
+            function applyTone(syl: string, tone: number): string {
+              const vowels = ['a','e','i','o','u','ü']
+              const toneMap: Record<string, string[]> = {
+                'a': ['a','ā','á','ǎ','à'], 'e': ['e','ē','é','ě','è'],
+                'i': ['i','ī','í','ǐ','ì'], 'o': ['o','ō','ó','ǒ','ò'],
+                'u': ['u','ū','ú','ǔ','ù'], 'ü': ['ü','ǖ','ǘ','ǚ','ǜ']
+              }
+              if (tone === 0) return syl
+              const clean = syl.replace(/[āáǎàēéěèīíǐìōóǒòūúǔùǖǘǚǜ]/g, (c) => {
+                for (const [base, marks] of Object.entries(toneMap)) {
+                  if (marks.includes(c)) return base
+                }
+                return c
+              })
+              for (const vowel of vowels) {
+                if (clean.includes(vowel)) {
+                  const marked = toneMap[vowel]?.[tone] || vowel
+                  return clean.replace(vowel, marked)
+                }
+              }
+              return syl
+            }
+
+            const syls = q.pinyin.split(' ')
+            const baseSyl1 = syls[0]?.replace(/[āáǎàēéěèīíǐìōóǒòūúǔùǖǘǚǜ]/g, (c) => {
+              const map: Record<string,string> = {'ā':'a','á':'a','ǎ':'a','à':'a','ē':'e','é':'e','ě':'e','è':'e','ī':'i','í':'i','ǐ':'i','ì':'i','ō':'o','ó':'o','ǒ':'o','ò':'o','ū':'u','ú':'u','ǔ':'u','ù':'u'}
+              return map[c] || c
+            }) || ''
+            const baseSyl2 = syls[1]?.replace(/[āáǎàēéěèīíǐìōóǒòūúǔùǖǘǚǜ]/g, (c) => {
+              const map: Record<string,string> = {'ā':'a','á':'a','ǎ':'a','à':'a','ē':'e','é':'e','ě':'e','è':'e','ī':'i','í':'i','ǐ':'i','ì':'i','ō':'o','ó':'o','ǒ':'o','ò':'o','ū':'u','ú':'u','ǔ':'u','ù':'u'}
+              return map[c] || c
+            }) || ''
+
+            return (
+              <div style={{display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '8px'}}>
+                {[1,2,3,4,0,1,2,3,4,0,1,2,3,4,0,1,2,3,4,0].map((t2, idx) => {
+                  const t1 = Math.floor(idx / 5) + 1
+                  const isCorrect = t1 === q.tone1 && t2 === q.tone2
+                  const isChosen = answered && answered.t1 === t1 && answered.t2 === t2
+                  const pinyinOption = applyTone(baseSyl1, t1) + ' ' + applyTone(baseSyl2, t2 === 0 ? 0 : t2)
+                  let bg = '#fff0f4'
+                  let border = '1px solid transparent'
+                  let color = '#25181e'
+                  if (answered) {
+                    if (isCorrect) { bg = toneColors[q.tone1]; color = '#fff'; border = '2px solid ' + toneColors[q.tone1] }
+                    else if (isChosen) { bg = '#ffdad6'; color = '#93000a'; border = '2px solid #e53935' }
+                  }
+                  return (
+                    <button key={idx} onClick={() => handleAnswer(t1, t2)} disabled={answered !== null} style={{
+                      padding: '12px 6px', backgroundColor: bg, color, border,
+                      borderRadius: '10px', fontFamily: 'Work Sans, sans-serif',
+                      fontSize: '13px', fontWeight: 600, cursor: answered ? 'default' : 'pointer',
+                      transition: 'all 0.15s', lineHeight: 1.4, textAlign: 'center'
+                    }}>
+                      {pinyinOption}
+                    </button>
+                  )
+                })}
+              </div>
+            )
+          })()}
         </div>
       </main>
     )
