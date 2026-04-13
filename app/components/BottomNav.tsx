@@ -6,10 +6,10 @@ export default function BottomNav() {
   const path = usePathname()
 
   const tabs = [
-    { href: '/', icon: 'search', label: 'Search' },
-    { href: '/lyrics', icon: 'auto_stories', label: 'Lyrics' },
-    { href: '/archive', icon: 'inventory_2', label: 'Archive' },
-    { href: '/settings', icon: 'settings', label: 'Settings' },
+    { href: '/', icon: 'search', label: '搜索' },
+    { href: '/lyrics', icon: 'auto_stories', label: '歌词' },
+    { href: '/archive', icon: 'inventory_2', label: '档案' },
+    { href: '/settings', icon: 'settings', label: '设置' },
   ]
 
   return (
@@ -28,24 +28,19 @@ export default function BottomNav() {
         return (
           <Link key={tab.href} href={tab.href} style={{
             display: 'flex', flexDirection: 'column', alignItems: 'center',
-            padding: '8px 16px',
-            borderRadius: '9999px',
+            padding: '8px 16px', borderRadius: '9999px',
             backgroundColor: active ? '#f4dce4' : 'transparent',
             color: active ? '#bc004b' : '#4d4447',
-            textDecoration: 'none',
-            transition: 'all 0.2s'
+            textDecoration: 'none', transition: 'all 0.2s'
           }}>
             <span className="material-symbols-outlined" style={{
               fontVariationSettings: active ? "'FILL' 1" : "'FILL' 0",
               fontSize: '24px'
             }}>{tab.icon}</span>
             <span style={{
-              fontFamily: 'Work Sans, sans-serif',
-              fontSize: '10px',
-              textTransform: 'uppercase',
-              letterSpacing: '0.1em',
-              marginTop: '4px',
-              fontWeight: active ? 600 : 400
+              fontFamily: 'Work Sans, sans-serif', fontSize: '10px',
+              textTransform: 'uppercase', letterSpacing: '0.05em',
+              marginTop: '4px', fontWeight: active ? 600 : 400
             }}>{tab.label}</span>
           </Link>
         )

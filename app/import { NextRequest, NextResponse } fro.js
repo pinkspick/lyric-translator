@@ -32,4 +32,4 @@ export async function GET(request: NextRequest) {
     pinyin: '',
     english,
   })
-}find app/api -type f
+}
