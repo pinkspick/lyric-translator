@@ -29,6 +29,7 @@ type QuizQuestion = {
   tone1: number
   tone2: number
   pinyin: string
+  english: string
 }
 
 type QuizResult = {
@@ -147,12 +148,16 @@ export default function LyricsPage() {
     for (let i = 0; i < song.simplified.length; i++) {
       const chars = song.simplified[i]
       const syllables = song.pinyin[i]?.split(' ') || []
+      const english = song.english[i] || ''
+      // Only use lines where char count matches syllable count
+      const chineseChars = chars.split('').filter(c => /[\u4e00-\u9fff]/.test(c))
+      if (chineseChars.length !== syllables.length) continue
       for (let j = 0; j < syllables.length - 1; j++) {
-        const word = chars.slice(j, j + 2)
-        if (word.length < 2 || seen.has(word) || !/[\u4e00-\u9fff]/.test(word)) continue
+        const word = chineseChars[j] + chineseChars[j + 1]
+        if (seen.has(word)) continue
         const t1 = getSyllableTone(syllables[j])
         const t2 = getSyllableTone(syllables[j + 1])
-        if (t1 === 0) continue
+        if (t1 === 0 || t2 === 0) continue
         seen.add(word)
         qs.push({
           word,
@@ -160,7 +165,8 @@ export default function LyricsPage() {
           syl2Base: stripTone(syllables[j + 1]),
           tone1: t1,
           tone2: t2,
-          pinyin: syllables[j] + ' ' + syllables[j + 1]
+          pinyin: syllables[j] + ' ' + syllables[j + 1],
+          english
         })
       }
     }
@@ -333,8 +339,9 @@ export default function LyricsPage() {
         </header>
 
         <div style={{padding: '80px 16px 16px', fontFamily: 'sans-serif', maxWidth: 700, margin: '0 auto'}}>
-          <div style={{textAlign: 'center', fontSize: 72, fontWeight: 500, letterSpacing: 4, marginBottom: '1.25rem', lineHeight: 1.1}}>
-            {q.word}
+          <div style={{textAlign: 'center', marginBottom: '1.25rem'}}>
+            <div style={{fontSize: 72, fontWeight: 500, letterSpacing: 4, lineHeight: 1.1}}>{q.word}</div>
+            {q.english && <div style={{fontSize: 13, color: '#7f7478', fontStyle: 'italic', marginTop: '6px', fontFamily: 'Newsreader, serif'}}>{q.english}</div>}
           </div>
 
           <div style={{display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12, marginBottom: '1.5rem'}}>
