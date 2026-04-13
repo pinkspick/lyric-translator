@@ -117,6 +117,7 @@ export default function LyricsPage() {
   const [selected, setSelected] = useState<string | null>(null)
   const [answered, setAnswered] = useState(false)
   const [timeLeft, setTimeLeft] = useState(10)
+  const [wordDef, setWordDef] = useState('')
   const timerRef = useRef<NodeJS.Timeout | null>(null)
   const router = useRouter()
 
@@ -134,6 +135,12 @@ export default function LyricsPage() {
       }
     }
   }, [])
+
+  useEffect(() => {
+    if (!showQuiz || showSummary || !stageQuestions[currentQ]) return
+    fetch('/api/dict?w=' + encodeURIComponent(stageQuestions[currentQ].word))
+      .then(r => r.json()).then(d => setWordDef(d.definition || '')).catch(() => {})
+  }, [currentQ, showQuiz])
 
   useEffect(() => {
     if (!showQuiz || showSummary || answered) return
@@ -185,6 +192,7 @@ export default function LyricsPage() {
     setTimeLeft(10)
     setShowSummary(false)
     setShowQuiz(true)
+    setWordDef('')
   }
 
   function handleAnswer(t1: number, t2: number) {
@@ -205,6 +213,7 @@ export default function LyricsPage() {
         setSelected(null)
         setAnswered(false)
         setTimeLeft(10)
+        setWordDef('')
       }
     }, 1400)
   }
@@ -341,7 +350,7 @@ export default function LyricsPage() {
         <div style={{padding: '80px 16px 16px', fontFamily: 'sans-serif', maxWidth: 700, margin: '0 auto'}}>
           <div style={{textAlign: 'center', marginBottom: '1.25rem'}}>
             <div style={{fontSize: 72, fontWeight: 500, letterSpacing: 4, lineHeight: 1.1}}>{q.word}</div>
-            {q.english && <div style={{fontSize: 13, color: '#7f7478', fontStyle: 'italic', marginTop: '6px', fontFamily: 'Newsreader, serif'}}>{q.english}</div>}
+            {wordDef && <div style={{fontSize: 13, color: '#7f7478', fontStyle: 'italic', marginTop: '6px', fontFamily: 'Newsreader, serif'}}>{wordDef}</div>}
           </div>
 
           <div style={{display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12, marginBottom: '1.5rem'}}>
