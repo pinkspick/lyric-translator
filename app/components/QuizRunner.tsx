@@ -208,7 +208,7 @@ export default function QuizRunner({ questions, title, onExit, onRestart }: Prop
         <span style={{fontFamily: 'Work Sans, sans-serif', fontSize: '12px', color: '#4d4447'}}>{stage+1}/{totalStages}</span>
       </header>
 
-      <div style={{padding: '80px 16px 16px', fontFamily: 'sans-serif', maxWidth: 700, margin: '0 auto'}}>
+      <div style={{padding: '80px 8px 16px', fontFamily: 'sans-serif', maxWidth: 700, margin: '0 auto'}}>
         <div style={{textAlign: 'center', marginBottom: '1.25rem'}}>
           <div style={{fontSize: 72, fontWeight: 500, letterSpacing: 4, lineHeight: 1.1}}>{q.word}</div>
           {wordDef && <div style={{fontSize: 13, color: '#7f7478', fontStyle: 'italic', marginTop: '6px', fontFamily: 'Newsreader, serif'}}>{wordDef}</div>}
@@ -221,57 +221,62 @@ export default function QuizRunner({ questions, title, onExit, onRestart }: Prop
           </div>
         </div>
 
-        <div style={{overflowX: 'auto'}}>
-          <table style={{borderCollapse: 'separate', borderSpacing: 5, margin: '0 auto'}}>
-            <thead>
-              <tr>
-                <th style={{padding: '4px 8px', verticalAlign: 'middle'}}>
-                  <span style={{fontSize: 10, color: '#888', fontWeight: 400}}>{q.word[0]}↓ {q.word[1]}→</span>
+        <table style={{width: '100%', tableLayout: 'fixed', borderCollapse: 'separate', borderSpacing: 3}}>
+          <colgroup>
+            <col style={{width: '9%'}} />
+            <col style={{width: '18.2%'}} />
+            <col style={{width: '18.2%'}} />
+            <col style={{width: '18.2%'}} />
+            <col style={{width: '18.2%'}} />
+            <col style={{width: '18.2%'}} />
+          </colgroup>
+          <thead>
+            <tr>
+              <th style={{padding: '2px', verticalAlign: 'middle'}}>
+                <span style={{fontSize: 9, color: '#888', fontWeight: 400}}>↓→</span>
+              </th>
+              {TONES.map((t, ci) => (
+                <th key={ci} style={{fontWeight: 600, padding: '6px 0', borderRadius: 6, textAlign: 'center', background: TONE_COLORS[t.cls].bg, color: TONE_COLORS[t.cls].headerText, fontSize: 14}}>
+                  {applyTone('a', t.tone)}
                 </th>
-                {TONES.map((t, ci) => (
-                  <th key={ci} style={{fontWeight: 500, padding: '4px 6px', borderRadius: 6, textAlign: 'center', whiteSpace: 'nowrap', background: TONE_COLORS[t.cls].bg, color: TONE_COLORS[t.cls].headerText, fontSize: 10}}>
-                    {t.label}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {TONES.map((rowTone, ri) => (
-                <tr key={ri}>
-                  <th style={{fontSize: 10, fontWeight: 500, padding: '4px 6px', borderRadius: 6, textAlign: 'right', whiteSpace: 'nowrap', background: TONE_COLORS[rowTone.cls].bg, color: TONE_COLORS[rowTone.cls].headerText}}>
-                    {rowTone.label}
-                  </th>
-                  {TONES.map((colTone, ci) => {
-                    const key = rowTone.tone + '-' + colTone.tone
-                    const isSelected = selected === key
-                    const isCorrect = rowTone.tone === q.tone1 && colTone.tone === q.tone2
-                    const s1 = applyTone(q.syl1Base, rowTone.tone)
-                    const s2 = applyTone(q.syl2Base, colTone.tone)
-                    let bg = '#fff'
-                    let border = '0.5px solid rgba(0,0,0,0.12)'
-                    if (answered && isCorrect) { bg = '#e8f5e9'; border = '2px solid #2e7d32' }
-                    else if (answered && isSelected && !isCorrect) { bg = '#fce8e8'; border = '2px solid #e53935' }
-                    else if (isSelected) { bg = '#fbeaf0'; border = '2px solid #993556' }
-                    return (
-                      <td key={ci} style={{padding: 0}}>
-                        <button onClick={() => handleAnswer(rowTone.tone, colTone.tone)} disabled={answered} style={{
-                          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 2,
-                          padding: '6px 4px', borderRadius: 8, border, background: bg,
-                          cursor: answered ? 'default' : 'pointer', minWidth: 60, fontSize: 11,
-                          outline: 'none', transition: 'border-color 0.1s, background 0.1s'
-                        }}>
-                          <span style={{color: TONE_COLORS[rowTone.cls].text, fontWeight: 500}}>{s1}</span>
-                          {' '}
-                          <span style={{color: TONE_COLORS[colTone.cls].text, fontWeight: 500}}>{s2}</span>
-                        </button>
-                      </td>
-                    )
-                  })}
-                </tr>
               ))}
-            </tbody>
-          </table>
-        </div>
+            </tr>
+          </thead>
+          <tbody>
+            {TONES.map((rowTone, ri) => (
+              <tr key={ri}>
+                <th style={{fontSize: 14, fontWeight: 600, padding: '6px 0', borderRadius: 6, textAlign: 'center', background: TONE_COLORS[rowTone.cls].bg, color: TONE_COLORS[rowTone.cls].headerText}}>
+                  {applyTone('a', rowTone.tone)}
+                </th>
+                {TONES.map((colTone, ci) => {
+                  const key = rowTone.tone + '-' + colTone.tone
+                  const isSelected = selected === key
+                  const isCorrect = rowTone.tone === q.tone1 && colTone.tone === q.tone2
+                  const s1 = applyTone(q.syl1Base, rowTone.tone)
+                  const s2 = applyTone(q.syl2Base, colTone.tone)
+                  let bg = '#fff'
+                  let border = '0.5px solid rgba(0,0,0,0.12)'
+                  if (answered && isCorrect) { bg = '#e8f5e9'; border = '2px solid #2e7d32' }
+                  else if (answered && isSelected && !isCorrect) { bg = '#fce8e8'; border = '2px solid #e53935' }
+                  else if (isSelected) { bg = '#fbeaf0'; border = '2px solid #993556' }
+                  return (
+                    <td key={ci} style={{padding: 0}}>
+                      <button onClick={() => handleAnswer(rowTone.tone, colTone.tone)} disabled={answered} style={{
+                        display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 1,
+                        padding: '10px 2px', borderRadius: 8, border, background: bg,
+                        cursor: answered ? 'default' : 'pointer', width: '100%', fontSize: 13,
+                        outline: 'none', transition: 'border-color 0.1s, background 0.1s', lineHeight: 1.2
+                      }}>
+                        <span style={{color: TONE_COLORS[rowTone.cls].text, fontWeight: 600}}>{s1}</span>
+                        <span style={{color: TONE_COLORS[colTone.cls].text, fontWeight: 600}}>{s2}</span>
+                      </button>
+                    </td>
+                  )
+                })}
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </div>
     </main>
   )

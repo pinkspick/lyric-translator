@@ -83,7 +83,7 @@ function extractQuizWords(song: LyricResult): QuizQuestion[] {
 
 export default function LyricsPage() {
   const [song, setSong] = useState<LyricResult | null>(null)
-  const [viewMode, setViewMode] = useState<ViewMode>('pinyin')
+  const [viewMode, setViewMode] = useState<ViewMode>('hanzi')
   const [showQuiz, setShowQuiz] = useState(false)
   const [quizQuestions, setQuizQuestions] = useState<QuizQuestion[]>([])
   const [searchResults, setSearchResults] = useState<SearchResult[]>([])
@@ -91,7 +91,7 @@ export default function LyricsPage() {
   const [loadingAlternate, setLoadingAlternate] = useState(false)
   const [scrolled, setScrolled] = useState(false)
   const [autoScroll, setAutoScroll] = useState(false)
-  const [scrollSpeed, setScrollSpeed] = useState(2)
+  const [scrollSpeed, setScrollSpeed] = useState(1)
   const [dictWord, setDictWord] = useState<string | null>(null)
   const [dictPinyin, setDictPinyin] = useState<string>('')
   const router = useRouter()
@@ -121,7 +121,7 @@ export default function LyricsPage() {
     function tick(now: number) {
       const dt = now - last
       last = now
-      window.scrollBy(0, scrollSpeed * 30 * dt / 1000)
+      window.scrollBy(0, scrollSpeed * 50 * dt / 1000)
       const atBottom = window.innerHeight + window.scrollY >= document.body.offsetHeight - 2
       if (atBottom) { setAutoScroll(false); return }
       raf = requestAnimationFrame(tick)
@@ -173,9 +173,9 @@ export default function LyricsPage() {
   }
 
   const viewButtons: { mode: ViewMode; label: string }[] = [
+    { mode: 'hanzi', label: '汉字' },
     { mode: 'pinyin', label: '拼音' },
     { mode: 'full', label: '全文' },
-    { mode: 'hanzi', label: '汉字' },
   ]
 
   if (!song) return (
@@ -249,7 +249,7 @@ export default function LyricsPage() {
           let charIdx = 0
           return (
             <div key={i} style={{marginBottom: '32px'}}>
-              <p style={{fontFamily: 'Newsreader, serif', fontSize: '22px', fontWeight: 700, color: '#25181e', marginBottom: '6px', lineHeight: 1.4}}>
+              <p style={{fontFamily: 'Newsreader, serif', fontSize: '22px', fontWeight: 700, color: '#25181e', marginBottom: '6px', lineHeight: 1.4, overflowWrap: 'anywhere'}}>
                 {line.split('').map((ch, ci) => {
                   const isChinese = /[一-鿿]/.test(ch)
                   if (!isChinese) return <span key={ci}>{ch}</span>
@@ -266,9 +266,9 @@ export default function LyricsPage() {
                 })}
               </p>
               {viewMode !== 'hanzi' && (
-                <p style={{marginBottom: '6px', lineHeight: 1.8}}>
+                <p style={{marginBottom: '6px', lineHeight: 1.8, display: 'flex', flexWrap: 'wrap', gap: '0 6px'}}>
                   {colored.map((syl, j) => (
-                    <span key={j} style={{fontFamily: 'Work Sans, sans-serif', fontSize: '13px', color: syl.color, marginRight: '6px'}}>{syl.text}</span>
+                    <span key={j} style={{fontFamily: 'Work Sans, sans-serif', fontSize: '13px', color: syl.color}}>{syl.text}</span>
                   ))}
                 </p>
               )}
@@ -286,12 +286,12 @@ export default function LyricsPage() {
             <span style={{fontFamily: 'Work Sans, sans-serif', fontSize: '11px', color: '#bc004b', fontWeight: 600}}>{scrollSpeed}×</span>
             <input
               type="range"
-              min={1}
-              max={5}
-              step={1}
+              min={0.5}
+              max={3}
+              step={0.5}
               value={scrollSpeed}
               onChange={e => setScrollSpeed(Number(e.target.value))}
-              style={{width: '90px', accentColor: '#bc004b'}}
+              style={{width: '110px', accentColor: '#bc004b'}}
             />
           </div>
         )}
