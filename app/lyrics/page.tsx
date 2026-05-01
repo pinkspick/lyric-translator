@@ -1,9 +1,9 @@
 'use client'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '../../lib/supabase'
 import { colorPinyinLine } from '../../lib/toneColors'
-import { isAdvancedHsk } from '../../lib/hsk'
+import { isAdvancedHsk, getHskWord, type HskWord } from '../../lib/hsk'
 import QuizRunner, { QuizQuestion } from '../components/QuizRunner'
 import DictionaryDrawer from '../components/DictionaryDrawer'
 
@@ -172,6 +172,25 @@ export default function LyricsPage() {
     setDictPinyin(pinyinForWord)
   }
 
+  const advancedWords = useMemo<HskWord[]>(() => {
+    if (!song) return []
+    const seen = new Set<string>()
+    const out: HskWord[] = []
+    for (const line of song.simplified) {
+      const chars = line.split('').filter(c => /[一-鿿]/.test(c))
+      for (let j = 0; j < chars.length - 1; j++) {
+        const word = chars[j] + chars[j + 1]
+        if (seen.has(word)) continue
+        const hsk = getHskWord(word)
+        if (hsk && hsk.level >= 5) {
+          seen.add(word)
+          out.push(hsk)
+        }
+      }
+    }
+    return out.sort((a, b) => a.level - b.level)
+  }, [song])
+
   const viewButtons: { mode: ViewMode; label: string }[] = [
     { mode: 'hanzi', label: '汉字' },
     { mode: 'pinyin', label: '拼音' },
@@ -279,6 +298,33 @@ export default function LyricsPage() {
           )
         })}
       </section>
+
+      {advancedWords.length > 0 && (
+        <section style={{padding: '40px 24px 0'}}>
+          <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: '16px'}}>
+            <h3 style={{fontFamily: 'Newsreader, serif', fontSize: '24px', color: '#bc004b', margin: 0}}>本曲生词</h3>
+            <span style={{fontFamily: 'Work Sans, sans-serif', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.15em', color: '#7f7478'}}>HSK 5+ · {advancedWords.length} 个</span>
+          </div>
+          <div style={{display: 'flex', flexDirection: 'column', gap: '8px'}}>
+            {advancedWords.map(w => (
+              <button
+                key={w.word}
+                onClick={() => openDict(w.word, w.pinyin)}
+                style={{textAlign: 'left', backgroundColor: '#fff', border: '1px solid #f0d8d8', borderRadius: '12px', padding: '12px 16px', cursor: 'pointer', display: 'block'}}
+              >
+                <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '12px', marginBottom: '4px'}}>
+                  <div style={{flex: 1, minWidth: 0}}>
+                    <p style={{fontFamily: 'Newsreader, serif', fontSize: '22px', fontWeight: 700, color: '#25181e', margin: '0 0 2px'}}>{w.word}</p>
+                    <p style={{fontFamily: 'Work Sans, sans-serif', fontSize: '13px', color: '#bc004b', margin: 0}}>{w.pinyin}</p>
+                  </div>
+                  <span style={{flexShrink: 0, fontFamily: 'Work Sans, sans-serif', fontSize: '10px', fontWeight: 600, padding: '3px 8px', borderRadius: '999px', backgroundColor: w.level === 5 ? '#fff3e0' : w.level === 6 ? '#fde8e8' : '#e3f2fd', color: w.level === 5 ? '#e65100' : w.level === 6 ? '#b71c1c' : '#0d47a1'}}>HSK {w.level === 7 ? '7-9' : w.level}</span>
+                </div>
+                <p style={{fontFamily: 'Newsreader, serif', fontSize: '13px', color: '#4d4447', margin: '4px 0 0', lineHeight: 1.5, overflowWrap: 'anywhere'}}>{w.meaning}</p>
+              </button>
+            ))}
+          </div>
+        </section>
+      )}
 
       <div style={{position: 'fixed', right: '16px', bottom: '110px', display: 'flex', flexDirection: 'column', gap: '10px', alignItems: 'flex-end', zIndex: 40}}>
         {autoScroll && (

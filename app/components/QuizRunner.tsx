@@ -84,9 +84,10 @@ type Props = {
   title: string
   onExit: () => void
   onRestart: () => void
+  audio?: boolean
 }
 
-export default function QuizRunner({ questions, title, onExit, onRestart }: Props) {
+export default function QuizRunner({ questions, title, onExit, onRestart, audio = false }: Props) {
   const [stage, setStage] = useState(0)
   const [currentQ, setCurrentQ] = useState(0)
   const [stageResults, setStageResults] = useState<QuizResult[]>([])
@@ -95,7 +96,20 @@ export default function QuizRunner({ questions, title, onExit, onRestart }: Prop
   const [timeLeft, setTimeLeft] = useState(10)
   const [wordDef, setWordDef] = useState('')
   const [showSummary, setShowSummary] = useState(false)
+  const [audioOn, setAudioOn] = useState(false)
   const timerRef = useRef<NodeJS.Timeout | null>(null)
+
+  useEffect(() => {
+    if (!audio || typeof window === 'undefined') return
+    setAudioOn(sessionStorage.getItem('quizAudio') !== 'off')
+  }, [audio])
+
+  function toggleAudio() {
+    const next = !audioOn
+    setAudioOn(next)
+    if (typeof window !== 'undefined') sessionStorage.setItem('quizAudio', next ? 'on' : 'off')
+    if (!next && typeof window !== 'undefined' && window.speechSynthesis) window.speechSynthesis.cancel()
+  }
 
   const stageQuestions = questions.slice(stage * STAGE_SIZE, (stage + 1) * STAGE_SIZE)
   const totalStages = Math.max(1, Math.ceil(questions.length / STAGE_SIZE))
@@ -105,8 +119,8 @@ export default function QuizRunner({ questions, title, onExit, onRestart }: Prop
     if (showSummary || !q) return
     fetch('/api/dict?w=' + encodeURIComponent(q.word))
       .then(r => r.json()).then(d => setWordDef(d.definition || '')).catch(() => {})
-    speak(q.word)
-  }, [currentQ, stage, showSummary, q])
+    if (audio && audioOn) speak(q.word)
+  }, [currentQ, stage, showSummary, q, audio, audioOn])
 
   useEffect(() => {
     if (showSummary || answered || !q) return
@@ -217,20 +231,29 @@ export default function QuizRunner({ questions, title, onExit, onRestart }: Prop
           <span className="material-symbols-outlined" style={{color: '#bc004b'}}>arrow_back</span>
         </button>
         <h1 style={{fontFamily: 'Newsreader, serif', fontStyle: 'italic', fontSize: '18px', color: '#bc004b', margin: 0}}>{title} · {currentQ+1}/{stageQuestions.length}</h1>
-        <span style={{fontFamily: 'Work Sans, sans-serif', fontSize: '12px', color: '#4d4447'}}>{stage+1}/{totalStages}</span>
+        <div style={{display: 'flex', alignItems: 'center', gap: 8}}>
+          {audio && (
+            <button onClick={toggleAudio} aria-label={audioOn ? '关闭发音' : '开启发音'} style={{background: 'none', border: 'none', cursor: 'pointer', padding: 0, display: 'flex'}}>
+              <span className="material-symbols-outlined" style={{color: audioOn ? '#bc004b' : '#bdb1b5', fontSize: 22}}>{audioOn ? 'volume_up' : 'volume_off'}</span>
+            </button>
+          )}
+          <span style={{fontFamily: 'Work Sans, sans-serif', fontSize: '12px', color: '#4d4447'}}>{stage+1}/{totalStages}</span>
+        </div>
       </header>
 
       <div style={{padding: '80px 8px 16px', fontFamily: 'sans-serif', maxWidth: 700, margin: '0 auto'}}>
         <div style={{textAlign: 'center', marginBottom: '1.25rem'}}>
           <div style={{display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12}}>
             <div style={{fontSize: 72, fontWeight: 500, letterSpacing: 4, lineHeight: 1.1}}>{q.word}</div>
-            <button onClick={() => speak(q.word)} aria-label="播放发音" style={{
-              background: '#fff0f4', border: 'none', borderRadius: '50%',
-              width: 44, height: 44, cursor: 'pointer',
-              display: 'flex', alignItems: 'center', justifyContent: 'center'
-            }}>
-              <span className="material-symbols-outlined" style={{color: '#bc004b', fontSize: 24}}>volume_up</span>
-            </button>
+            {audio && audioOn && (
+              <button onClick={() => speak(q.word)} aria-label="播放发音" style={{
+                background: '#fff0f4', border: 'none', borderRadius: '50%',
+                width: 44, height: 44, cursor: 'pointer',
+                display: 'flex', alignItems: 'center', justifyContent: 'center'
+              }}>
+                <span className="material-symbols-outlined" style={{color: '#bc004b', fontSize: 24}}>volume_up</span>
+              </button>
+            )}
           </div>
           {wordDef && <div style={{fontSize: 13, color: '#7f7478', fontStyle: 'italic', marginTop: '6px', fontFamily: 'Newsreader, serif'}}>{wordDef}</div>}
         </div>

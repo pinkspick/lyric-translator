@@ -79,6 +79,7 @@ export default function QuizPage() {
       title="HSK 测验"
       onExit={() => router.push('/')}
       onRestart={restart}
+      audio
     />
   )
 }
