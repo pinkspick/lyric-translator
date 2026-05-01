@@ -65,7 +65,9 @@ export default function SearchPage() {
         alignItems: 'center', padding: '16px 24px'
       }}>
         <div style={{display: 'flex', alignItems: 'center', gap: '16px'}}>
-          <span className="material-symbols-outlined" style={{color: '#bc004b'}}>menu</span>
+          <button onClick={() => router.push('/learn')} aria-label="学习记录" style={{background: 'none', border: 'none', cursor: 'pointer', padding: 0, display: 'flex'}}>
+            <span className="material-symbols-outlined" style={{color: '#bc004b'}}>menu</span>
+          </button>
           <h1 style={{fontFamily: 'Newsreader, serif', fontStyle: 'italic', fontSize: '24px', color: '#bc004b', margin: 0}}>乐译</h1>
         </div>
         <span className="material-symbols-outlined" style={{color: '#bc004b'}}>account_circle</span>

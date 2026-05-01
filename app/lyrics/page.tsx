@@ -1,8 +1,12 @@
 'use client'
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '../../lib/supabase'
 import { colorPinyinLine } from '../../lib/toneColors'
+import { isAdvancedHsk, getHskWord, type HskWord } from '../../lib/hsk'
+import { recordSongView } from '../../lib/learnLog'
+import QuizRunner, { QuizQuestion } from '../components/QuizRunner'
+import DictionaryDrawer from '../components/DictionaryDrawer'
 
 type LyricResult = {
   title: string
@@ -12,7 +16,7 @@ type LyricResult = {
   english: string[]
 }
 
-type ViewMode = 'full' | 'pinyin' | 'hanzi'
+type ViewMode = 'pinyin' | 'full' | 'hanzi'
 
 type SearchResult = {
   id: number
@@ -22,39 +26,6 @@ type SearchResult = {
   hasLyrics: boolean
 }
 
-type QuizQuestion = {
-  word: string
-  syl1Base: string
-  syl2Base: string
-  tone1: number
-  tone2: number
-  pinyin: string
-  english: string
-}
-
-type QuizResult = {
-  question: QuizQuestion
-  chosenTone1: number
-  chosenTone2: number
-  correct: boolean
-}
-
-const TONES = [
-  { label: '第一声 ā', cls: 't1', tone: 1 },
-  { label: '第二声 á', cls: 't2', tone: 2 },
-  { label: '第三声 ǎ', cls: 't3', tone: 3 },
-  { label: '第四声 à', cls: 't4', tone: 4 },
-  { label: '轻声 a',  cls: 't0', tone: 0 },
-]
-
-const TONE_COLORS: Record<string, { text: string, bg: string, headerText: string }> = {
-  t1: { text: '#e53935', bg: '#fde8e8', headerText: '#b71c1c' },
-  t2: { text: '#fb8c00', bg: '#fff3e0', headerText: '#e65100' },
-  t3: { text: '#2e7d32', bg: '#e8f5e9', headerText: '#1b5e20' },
-  t4: { text: '#1e88e5', bg: '#e3f2fd', headerText: '#0d47a1' },
-  t0: { text: '#7f7478', bg: '#f5f5f5', headerText: '#444441' },
-}
-
 const toneMarkMap: Record<string, string> = {
   'ā':'a','á':'a','ǎ':'a','à':'a',
   'ē':'e','é':'e','ě':'e','è':'e',
@@ -62,15 +33,6 @@ const toneMarkMap: Record<string, string> = {
   'ō':'o','ó':'o','ǒ':'o','ò':'o',
   'ū':'u','ú':'u','ǔ':'u','ù':'u',
   'ǖ':'ü','ǘ':'ü','ǚ':'ü','ǜ':'ü',
-}
-
-const toneVowelMap: Record<string, string[]> = {
-  'a': ['a','ā','á','ǎ','à'],
-  'e': ['e','ē','é','ě','è'],
-  'i': ['i','ī','í','ǐ','ì'],
-  'o': ['o','ō','ó','ǒ','ò'],
-  'u': ['u','ū','ú','ǔ','ù'],
-  'ü': ['ü','ǖ','ǘ','ǚ','ǜ'],
 }
 
 const toneMarkDetect: Record<string, number> = {
@@ -84,45 +46,57 @@ function stripTone(syl: string): string {
   return syl.split('').map((c: string) => toneMarkMap[c] || c).join('')
 }
 
-function applyTone(base: string, tone: number): string {
-  if (tone === 0) return base
-  const vowels = ['a','e','i','o','u','ü']
-  for (const v of vowels) {
-    if (base.includes(v)) {
-      return base.replace(v, toneVowelMap[v]?.[tone] || v)
-    }
-  }
-  return base
-}
-
 function getSyllableTone(syl: string): number {
   for (const ch of syl) { if (toneMarkDetect[ch]) return toneMarkDetect[ch] }
   return 0
 }
 
-const STAGE_SIZE = 10
+function extractQuizWords(song: LyricResult): QuizQuestion[] {
+  const qs: QuizQuestion[] = []
+  const seen = new Set<string>()
+  for (let i = 0; i < song.simplified.length; i++) {
+    const chars = song.simplified[i]
+    const syllables = song.pinyin[i]?.split(' ') || []
+    const english = song.english[i] || ''
+    const chineseChars = chars.split('').filter(c => /[一-鿿]/.test(c))
+    if (chineseChars.length !== syllables.length) continue
+    for (let j = 0; j < syllables.length - 1; j++) {
+      const word = chineseChars[j] + chineseChars[j + 1]
+      if (seen.has(word)) continue
+      const t1 = getSyllableTone(syllables[j])
+      const t2 = getSyllableTone(syllables[j + 1])
+      if (t1 === 0 || t2 === 0) continue
+      if (!isAdvancedHsk(word)) continue
+      seen.add(word)
+      qs.push({
+        word,
+        syl1Base: stripTone(syllables[j]),
+        syl2Base: stripTone(syllables[j + 1]),
+        tone1: t1,
+        tone2: t2,
+        pinyin: syllables[j] + ' ' + syllables[j + 1],
+        english
+      })
+    }
+  }
+  return qs.sort(() => Math.random() - 0.5)
+}
 
 export default function LyricsPage() {
   const [song, setSong] = useState<LyricResult | null>(null)
-  const [viewMode, setViewMode] = useState<ViewMode>('full')
+  const [viewMode, setViewMode] = useState<ViewMode>('hanzi')
   const [showQuiz, setShowQuiz] = useState(false)
-  const [showSummary, setShowSummary] = useState(false)
-  const [showWrongLyrics, setShowWrongLyrics] = useState(false)
+  const [quizQuestions, setQuizQuestions] = useState<QuizQuestion[]>([])
   const [searchResults, setSearchResults] = useState<SearchResult[]>([])
+  const [showWrongLyrics, setShowWrongLyrics] = useState(false)
   const [loadingAlternate, setLoadingAlternate] = useState(false)
-  const [allQuestions, setAllQuestions] = useState<QuizQuestion[]>([])
-  const [stage, setStage] = useState(0)
-  const [currentQ, setCurrentQ] = useState(0)
-  const [stageResults, setStageResults] = useState<QuizResult[]>([])
-  const [selected, setSelected] = useState<string | null>(null)
-  const [answered, setAnswered] = useState(false)
-  const [timeLeft, setTimeLeft] = useState(10)
-  const [wordDef, setWordDef] = useState('')
-  const timerRef = useRef<NodeJS.Timeout | null>(null)
+  const [scrolled, setScrolled] = useState(false)
+  const [autoScroll, setAutoScroll] = useState(false)
+  const [scrollSpeed, setScrollSpeed] = useState(1)
+  const [showSpeedSlider, setShowSpeedSlider] = useState(false)
+  const [dictWord, setDictWord] = useState<string | null>(null)
+  const [dictPinyin, setDictPinyin] = useState<string>('')
   const router = useRouter()
-
-  const stageQuestions = allQuestions.slice(stage * STAGE_SIZE, (stage + 1) * STAGE_SIZE)
-  const totalStages = Math.ceil(allQuestions.length / STAGE_SIZE)
 
   useEffect(() => {
     const stored = localStorage.getItem('current_song')
@@ -137,108 +111,47 @@ export default function LyricsPage() {
   }, [])
 
   useEffect(() => {
-    if (!showQuiz || showSummary || !stageQuestions[currentQ]) return
-    fetch('/api/dict?w=' + encodeURIComponent(stageQuestions[currentQ].word))
-      .then(r => r.json()).then(d => setWordDef(d.definition || '')).catch(() => {})
-  }, [currentQ, showQuiz])
+    function onScroll() { setScrolled(window.scrollY > 400) }
+    window.addEventListener('scroll', onScroll, { passive: true })
+    return () => window.removeEventListener('scroll', onScroll)
+  }, [])
 
   useEffect(() => {
-    if (!showQuiz || showSummary || answered) return
-    if (timeLeft <= 0) { handleAnswer(0, 0); return }
-    timerRef.current = setTimeout(() => setTimeLeft(t => t - 1), 1000)
-    return () => { if (timerRef.current) clearTimeout(timerRef.current) }
-  }, [showQuiz, timeLeft, answered, showSummary])
-
-  function extractQuizWords(song: LyricResult): QuizQuestion[] {
-    const qs: QuizQuestion[] = []
-    const seen = new Set<string>()
-    for (let i = 0; i < song.simplified.length; i++) {
-      const chars = song.simplified[i]
-      const syllables = song.pinyin[i]?.split(' ') || []
-      const english = song.english[i] || ''
-      // Only use lines where char count matches syllable count
-      const chineseChars = chars.split('').filter(c => /[\u4e00-\u9fff]/.test(c))
-      if (chineseChars.length !== syllables.length) continue
-      for (let j = 0; j < syllables.length - 1; j++) {
-        const word = chineseChars[j] + chineseChars[j + 1]
-        if (seen.has(word)) continue
-        const t1 = getSyllableTone(syllables[j])
-        const t2 = getSyllableTone(syllables[j + 1])
-        if (t1 === 0 || t2 === 0) continue
-        seen.add(word)
-        qs.push({
-          word,
-          syl1Base: stripTone(syllables[j]),
-          syl2Base: stripTone(syllables[j + 1]),
-          tone1: t1,
-          tone2: t2,
-          pinyin: syllables[j] + ' ' + syllables[j + 1],
-          english
-        })
-      }
+    if (!autoScroll) return
+    let raf = 0
+    let last = performance.now()
+    function tick(now: number) {
+      const dt = now - last
+      last = now
+      window.scrollBy(0, scrollSpeed * 50 * dt / 1000)
+      const atBottom = window.innerHeight + window.scrollY >= document.body.offsetHeight - 2
+      if (atBottom) { setAutoScroll(false); return }
+      raf = requestAnimationFrame(tick)
     }
-    return qs.sort(() => Math.random() - 0.5)
-  }
+    raf = requestAnimationFrame(tick)
+    return () => cancelAnimationFrame(raf)
+  }, [autoScroll, scrollSpeed])
+
+  useEffect(() => {
+    if (!showSpeedSlider) return
+    const t = setTimeout(() => setShowSpeedSlider(false), 2500)
+    return () => clearTimeout(t)
+  }, [showSpeedSlider, scrollSpeed])
+
+  useEffect(() => {
+    if (autoScroll) setShowSpeedSlider(true)
+    else setShowSpeedSlider(false)
+  }, [autoScroll])
 
   function startQuiz() {
     if (!song) return
     const qs = extractQuizWords(song)
-    setAllQuestions(qs)
-    setStage(0)
-    setCurrentQ(0)
-    setStageResults([])
-    setSelected(null)
-    setAnswered(false)
-    setTimeLeft(10)
-    setShowSummary(false)
+    if (qs.length === 0) {
+      alert('这首歌没有 HSK 4 以上的双字词')
+      return
+    }
+    setQuizQuestions(qs)
     setShowQuiz(true)
-    setWordDef('')
-  }
-
-  function handleAnswer(t1: number, t2: number) {
-    if (answered) return
-    if (timerRef.current) clearTimeout(timerRef.current)
-    const key = t1 + '-' + t2
-    setSelected(key)
-    setAnswered(true)
-    const q = stageQuestions[currentQ]
-    const correct = t1 === q.tone1 && t2 === q.tone2
-    const newResults = [...stageResults, { question: q, chosenTone1: t1, chosenTone2: t2, correct }]
-    setStageResults(newResults)
-    setTimeout(() => {
-      if (currentQ + 1 >= stageQuestions.length) {
-        setShowSummary(true)
-      } else {
-        setCurrentQ(q => q + 1)
-        setSelected(null)
-        setAnswered(false)
-        setTimeLeft(10)
-        setWordDef('')
-      }
-    }, 1400)
-  }
-
-  function nextStage() {
-    setStage(s => s + 1)
-    setCurrentQ(0)
-    setStageResults([])
-    setSelected(null)
-    setAnswered(false)
-    setTimeLeft(10)
-    setShowSummary(false)
-  }
-
-  async function saveVocab(word: string, pinyin: string) {
-    const existing = JSON.parse(localStorage.getItem('vocab_list') || '[]')
-    if (!existing.find((v: any) => v.word === word)) {
-      existing.push({ word, pinyin, addedAt: new Date().toISOString() })
-      localStorage.setItem('vocab_list', JSON.stringify(existing))
-      try {
-        const { data: { user } } = await supabase.auth.getUser()
-        if (user) await supabase.from('vocab').upsert({ user_id: user.id, word, pinyin, added_at: new Date().toISOString() }, { onConflict: 'user_id,word' })
-      } catch {}
-      alert(word + ' 已添加到生词本')
-    } else alert(word + ' 已在生词本中')
   }
 
   async function saveSong() {
@@ -267,10 +180,39 @@ export default function LyricsPage() {
     setLoadingAlternate(false)
   }
 
-  const viewButtons = [
-    { mode: 'full' as ViewMode, label: '全文' },
-    { mode: 'pinyin' as ViewMode, label: '拼音' },
-    { mode: 'hanzi' as ViewMode, label: '汉字' },
+  function openDict(word: string, pinyinForWord: string) {
+    setDictWord(word)
+    setDictPinyin(pinyinForWord)
+  }
+
+  const advancedWords = useMemo<HskWord[]>(() => {
+    if (!song) return []
+    const seen = new Set<string>()
+    const out: HskWord[] = []
+    for (const line of song.simplified) {
+      const chars = line.split('').filter(c => /[一-鿿]/.test(c))
+      for (let j = 0; j < chars.length - 1; j++) {
+        const word = chars[j] + chars[j + 1]
+        if (seen.has(word)) continue
+        const hsk = getHskWord(word)
+        if (hsk && hsk.level >= 5) {
+          seen.add(word)
+          out.push(hsk)
+        }
+      }
+    }
+    return out.sort((a, b) => a.level - b.level)
+  }, [song])
+
+  useEffect(() => {
+    if (!song) return
+    recordSongView({ title: song.title, artist: song.artist }, advancedWords)
+  }, [song, advancedWords])
+
+  const viewButtons: { mode: ViewMode; label: string }[] = [
+    { mode: 'hanzi', label: '汉字' },
+    { mode: 'pinyin', label: '拼音' },
+    { mode: 'full', label: '全文' },
   ]
 
   if (!song) return (
@@ -280,143 +222,16 @@ export default function LyricsPage() {
     </main>
   )
 
-  // SUMMARY
-  if (showQuiz && showSummary) {
-    const correct = stageResults.filter(r => r.correct).length
-    const isLastStage = stage + 1 >= totalStages
-    return (
-      <main style={{maxWidth: '700px', margin: '0 auto', paddingBottom: '120px'}}>
-        <header style={{position: 'fixed', top: 0, left: 0, width: '100%', zIndex: 50, backgroundColor: '#fff8f8', display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px 24px'}}>
-          <button onClick={() => { setShowQuiz(false); setShowSummary(false) }} style={{background: 'none', border: 'none', cursor: 'pointer'}}>
-            <span className="material-symbols-outlined" style={{color: '#bc004b'}}>arrow_back</span>
-          </button>
-          <h1 style={{fontFamily: 'Newsreader, serif', fontStyle: 'italic', fontSize: '20px', color: '#bc004b', margin: 0}}>第 {stage + 1} 关 结果</h1>
-          <span style={{width: '40px'}} />
-        </header>
-        <div style={{padding: '80px 24px 24px', textAlign: 'center'}}>
-          <p style={{fontSize: '56px', marginBottom: '8px'}}>{correct / stageResults.length >= 0.8 ? '🏆' : correct / stageResults.length >= 0.5 ? '👏' : '💪'}</p>
-          <h2 style={{fontFamily: 'Newsreader, serif', fontSize: '32px', marginBottom: '4px'}}>{correct} / {stageResults.length} 正确</h2>
-          <p style={{fontFamily: 'Work Sans, sans-serif', fontSize: '13px', color: '#4d4447', marginBottom: '4px'}}>第 {stage + 1} 关 / 共 {totalStages} 关</p>
-          <p style={{fontFamily: 'Work Sans, sans-serif', fontSize: '13px', color: '#bc004b', marginBottom: '32px', fontWeight: 600}}>正确率 {Math.round(correct / stageResults.length * 100)}%</p>
-          <div style={{display: 'flex', gap: '12px', justifyContent: 'center', marginBottom: '40px', flexWrap: 'wrap'}}>
-            <button onClick={startQuiz} style={{backgroundColor: '#fff0f4', color: '#bc004b', border: 'none', borderRadius: '8px', padding: '12px 20px', fontFamily: 'Work Sans, sans-serif', cursor: 'pointer', fontSize: '13px', fontWeight: 600}}>重新开始</button>
-            {!isLastStage && <button onClick={nextStage} style={{backgroundColor: '#bc004b', color: '#fff', border: 'none', borderRadius: '8px', padding: '12px 20px', fontFamily: 'Work Sans, sans-serif', cursor: 'pointer', fontSize: '13px', fontWeight: 600}}>下一关 ({stage + 2}/{totalStages}) →</button>}
-            {isLastStage && <button onClick={() => { setShowQuiz(false); setShowSummary(false) }} style={{backgroundColor: '#bc004b', color: '#fff', border: 'none', borderRadius: '8px', padding: '12px 20px', fontFamily: 'Work Sans, sans-serif', cursor: 'pointer', fontSize: '13px', fontWeight: 600}}>完成 🎉</button>}
-          </div>
-          <div style={{textAlign: 'left'}}>
-            <h3 style={{fontFamily: 'Newsreader, serif', fontSize: '20px', marginBottom: '16px', color: '#bc004b'}}>本关详情</h3>
-            {stageResults.map((r, i) => {
-              const correctTone1Cls = TONES.find(t => t.tone === r.question.tone1)?.cls || 't1'
-              const correctTone2Cls = TONES.find(t => t.tone === r.question.tone2)?.cls || 't1'
-              return (
-                <div key={i} style={{backgroundColor: r.correct ? '#e8f5e9' : '#fce8e8', borderRadius: '12px', padding: '16px', marginBottom: '12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between'}}>
-                  <div style={{display: 'flex', alignItems: 'center', gap: '16px'}}>
-                    <span style={{fontSize: '20px'}}>{r.correct ? '✓' : '✗'}</span>
-                    <div>
-                      <p style={{fontFamily: 'Newsreader, serif', fontSize: '28px', fontWeight: 700, margin: '0 0 4px'}}>{r.question.word}</p>
-                      <p style={{fontFamily: 'Work Sans, sans-serif', fontSize: '14px', margin: 0}}>
-                        <span style={{color: TONE_COLORS[correctTone1Cls].text, fontWeight: 700}}>{applyTone(r.question.syl1Base, r.question.tone1)}</span>
-                        {' '}
-                        <span style={{color: TONE_COLORS[correctTone2Cls].text, fontWeight: 700}}>{applyTone(r.question.syl2Base, r.question.tone2)}</span>
-                        {!r.correct && r.chosenTone1 > 0 && <span style={{color: '#999', fontSize: '12px'}}> · 你选了 {applyTone(r.question.syl1Base, r.chosenTone1)} {applyTone(r.question.syl2Base, r.chosenTone2)}</span>}
-                        {!r.correct && r.chosenTone1 === 0 && <span style={{color: '#999', fontSize: '12px'}}> · 超时</span>}
-                      </p>
-                    </div>
-                  </div>
-                  {!r.correct && <button onClick={() => saveVocab(r.question.word, r.question.pinyin)} style={{backgroundColor: '#fff', border: '1px solid #bc004b', color: '#bc004b', borderRadius: '8px', padding: '8px 10px', cursor: 'pointer', fontFamily: 'Work Sans, sans-serif', fontSize: '11px', fontWeight: 600, whiteSpace: 'nowrap'}}>+ 生词本</button>}
-                </div>
-              )
-            })}
-          </div>
-        </div>
-      </main>
-    )
+  if (showQuiz) {
+    return <QuizRunner
+      questions={quizQuestions}
+      title={'第1关'}
+      onExit={() => setShowQuiz(false)}
+      onRestart={startQuiz}
+      source={`歌曲 · ${song.title}`}
+    />
   }
 
-  // QUIZ
-  if (showQuiz && stageQuestions[currentQ]) {
-    const q = stageQuestions[currentQ]
-    const timerPct = Math.round((timeLeft / 10) * 100)
-    return (
-      <main style={{maxWidth: '700px', margin: '0 auto', paddingBottom: '40px'}}>
-        <header style={{position: 'fixed', top: 0, left: 0, width: '100%', zIndex: 50, backgroundColor: '#fff8f8', display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px 24px'}}>
-          <button onClick={() => setShowQuiz(false)} style={{background: 'none', border: 'none', cursor: 'pointer'}}>
-            <span className="material-symbols-outlined" style={{color: '#bc004b'}}>arrow_back</span>
-          </button>
-          <h1 style={{fontFamily: 'Newsreader, serif', fontStyle: 'italic', fontSize: '18px', color: '#bc004b', margin: 0}}>第{stage+1}关 · {currentQ+1}/{stageQuestions.length}</h1>
-          <span style={{fontFamily: 'Work Sans, sans-serif', fontSize: '12px', color: '#4d4447'}}>{stage+1}/{totalStages}</span>
-        </header>
-
-        <div style={{padding: '80px 16px 16px', fontFamily: 'sans-serif', maxWidth: 700, margin: '0 auto'}}>
-          <div style={{textAlign: 'center', marginBottom: '1.25rem'}}>
-            <div style={{fontSize: 72, fontWeight: 500, letterSpacing: 4, lineHeight: 1.1}}>{q.word}</div>
-            {wordDef && <div style={{fontSize: 13, color: '#7f7478', fontStyle: 'italic', marginTop: '6px', fontFamily: 'Newsreader, serif'}}>{wordDef}</div>}
-          </div>
-
-          <div style={{display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12, marginBottom: '1.5rem'}}>
-            <span style={{fontSize: 22, fontWeight: 500, color: '#993556', minWidth: 24}}>{timeLeft}</span>
-            <div style={{width: 180, height: 4, borderRadius: 2, background: '#e8e6e0', overflow: 'hidden'}}>
-              <div style={{height: 4, borderRadius: 2, background: '#993556', transition: 'width 1s linear', width: timerPct + '%'}} />
-            </div>
-          </div>
-
-          <div style={{overflowX: 'auto'}}>
-            <table style={{borderCollapse: 'separate', borderSpacing: 5, margin: '0 auto'}}>
-              <thead>
-                <tr>
-                  <th style={{padding: '4px 8px', verticalAlign: 'middle'}}>
-                    <span style={{fontSize: 10, color: '#888', fontWeight: 400}}>{q.word[0]}↓ {q.word[1]}→</span>
-                  </th>
-                  {TONES.map((t, ci) => (
-                    <th key={ci} style={{fontSize: 11, fontWeight: 500, padding: '4px 6px', borderRadius: 6, textAlign: 'center', whiteSpace: 'nowrap', background: TONE_COLORS[t.cls].bg, color: TONE_COLORS[t.cls].headerText, fontSize: 10}}>
-                      {t.label}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {TONES.map((rowTone, ri) => (
-                  <tr key={ri}>
-                    <th style={{fontSize: 10, fontWeight: 500, padding: '4px 6px', borderRadius: 6, textAlign: 'right', whiteSpace: 'nowrap', background: TONE_COLORS[rowTone.cls].bg, color: TONE_COLORS[rowTone.cls].headerText}}>
-                      {rowTone.label}
-                    </th>
-                    {TONES.map((colTone, ci) => {
-                      const key = rowTone.tone + '-' + colTone.tone
-                      const isSelected = selected === key
-                      const isCorrect = rowTone.tone === q.tone1 && colTone.tone === q.tone2
-                      const s1 = applyTone(q.syl1Base, rowTone.tone)
-                      const s2 = applyTone(q.syl2Base, colTone.tone)
-                      let bg = '#fff'
-                      let border = '0.5px solid rgba(0,0,0,0.12)'
-                      if (answered && isCorrect) { bg = '#e8f5e9'; border = '2px solid #2e7d32' }
-                      else if (answered && isSelected && !isCorrect) { bg = '#fce8e8'; border = '2px solid #e53935' }
-                      else if (isSelected) { bg = '#fbeaf0'; border = '2px solid #993556' }
-                      return (
-                        <td key={ci} style={{padding: 0}}>
-                          <button onClick={() => handleAnswer(rowTone.tone, colTone.tone)} disabled={answered} style={{
-                            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 2,
-                            padding: '6px 4px', borderRadius: 8, border, background: bg,
-                            cursor: answered ? 'default' : 'pointer', minWidth: 60, fontSize: 11,
-                            outline: 'none', transition: 'border-color 0.1s, background 0.1s'
-                          }}>
-                            <span style={{color: TONE_COLORS[rowTone.cls].text, fontWeight: 500}}>{s1}</span>
-                            {' '}
-                            <span style={{color: TONE_COLORS[colTone.cls].text, fontWeight: 500}}>{s2}</span>
-                          </button>
-                        </td>
-                      )
-                    })}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </main>
-    )
-  }
-
-  // LYRICS
   return (
     <main style={{paddingBottom: '120px', maxWidth: '800px', margin: '0 auto'}}>
       <header style={{position: 'fixed', top: 0, left: 0, width: '100%', zIndex: 50, backgroundColor: '#fff8f8', display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px 24px'}}>
@@ -456,7 +271,7 @@ export default function LyricsPage() {
             ))}
           </div>
         )}
-        <div style={{display: 'flex', gap: '8px', marginBottom: '32px'}}>
+        <div style={{display: 'flex', gap: '8px', marginBottom: '32px', justifyContent: 'flex-end'}}>
           {viewButtons.map(btn => (
             <button key={btn.mode} onClick={() => setViewMode(btn.mode)} style={{padding: '8px 20px', backgroundColor: viewMode === btn.mode ? '#bc004b' : '#fff0f4', color: viewMode === btn.mode ? '#fff' : '#bc004b', border: 'none', borderRadius: '8px', fontFamily: 'Work Sans, sans-serif', fontSize: '13px', fontWeight: 600, cursor: 'pointer'}}>{btn.label}</button>
           ))}
@@ -466,13 +281,32 @@ export default function LyricsPage() {
       <section style={{padding: '0 24px'}}>
         {song.simplified.map((line, i) => {
           const colored = colorPinyinLine(song.pinyin[i] || '')
+          const syllables = (song.pinyin[i] || '').split(' ')
+          const chineseChars = line.split('').filter(c => /[一-鿿]/.test(c))
+          const aligned = chineseChars.length === syllables.length
+          let charIdx = 0
           return (
             <div key={i} style={{marginBottom: '32px'}}>
-              <p style={{fontFamily: 'Newsreader, serif', fontSize: '22px', fontWeight: 700, color: '#25181e', marginBottom: '6px', lineHeight: 1.4}}>{line}</p>
+              <p style={{fontFamily: 'Newsreader, serif', fontSize: '22px', fontWeight: 700, color: '#25181e', marginBottom: '6px', lineHeight: 1.4, overflowWrap: 'anywhere'}}>
+                {line.split('').map((ch, ci) => {
+                  const isChinese = /[一-鿿]/.test(ch)
+                  if (!isChinese) return <span key={ci}>{ch}</span>
+                  const myIdx = charIdx
+                  charIdx++
+                  const syl = aligned ? syllables[myIdx] : ''
+                  return (
+                    <span
+                      key={ci}
+                      onClick={() => openDict(ch, syl)}
+                      style={{cursor: 'pointer'}}
+                    >{ch}</span>
+                  )
+                })}
+              </p>
               {viewMode !== 'hanzi' && (
-                <p style={{marginBottom: '6px', lineHeight: 1.8}}>
+                <p style={{marginBottom: '6px', lineHeight: 1.8, display: 'flex', flexWrap: 'wrap', gap: '0 6px'}}>
                   {colored.map((syl, j) => (
-                    <span key={j} style={{fontFamily: 'Work Sans, sans-serif', fontSize: '13px', color: syl.color, marginRight: '6px'}}>{syl.text}</span>
+                    <span key={j} style={{fontFamily: 'Work Sans, sans-serif', fontSize: '13px', color: syl.color}}>{syl.text}</span>
                   ))}
                 </p>
               )}
@@ -483,6 +317,89 @@ export default function LyricsPage() {
           )
         })}
       </section>
+
+      {advancedWords.length > 0 && (
+        <section style={{padding: '40px 24px 0'}}>
+          <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: '16px'}}>
+            <h3 style={{fontFamily: 'Newsreader, serif', fontSize: '24px', color: '#bc004b', margin: 0}}>本曲生词</h3>
+            <span style={{fontFamily: 'Work Sans, sans-serif', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.15em', color: '#7f7478'}}>HSK 5+ · {advancedWords.length} 个</span>
+          </div>
+          <div style={{display: 'flex', flexDirection: 'column', gap: '8px'}}>
+            {advancedWords.map(w => (
+              <button
+                key={w.word}
+                onClick={() => openDict(w.word, w.pinyin)}
+                style={{textAlign: 'left', backgroundColor: '#fff', border: '1px solid #f0d8d8', borderRadius: '12px', padding: '12px 16px', cursor: 'pointer', display: 'block'}}
+              >
+                <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '12px', marginBottom: '4px'}}>
+                  <div style={{flex: 1, minWidth: 0}}>
+                    <p style={{fontFamily: 'Newsreader, serif', fontSize: '22px', fontWeight: 700, color: '#25181e', margin: '0 0 2px'}}>{w.word}</p>
+                    <p style={{fontFamily: 'Work Sans, sans-serif', fontSize: '13px', color: '#bc004b', margin: 0}}>{w.pinyin}</p>
+                  </div>
+                  <span style={{flexShrink: 0, fontFamily: 'Work Sans, sans-serif', fontSize: '10px', fontWeight: 600, padding: '3px 8px', borderRadius: '999px', backgroundColor: w.level === 5 ? '#fff3e0' : w.level === 6 ? '#fde8e8' : '#e3f2fd', color: w.level === 5 ? '#e65100' : w.level === 6 ? '#b71c1c' : '#0d47a1'}}>HSK {w.level === 7 ? '7-9' : w.level}</span>
+                </div>
+                <p style={{fontFamily: 'Newsreader, serif', fontSize: '13px', color: '#4d4447', margin: '4px 0 0', lineHeight: 1.5, overflowWrap: 'anywhere'}}>{w.meaning}</p>
+              </button>
+            ))}
+          </div>
+        </section>
+      )}
+
+      <div style={{position: 'fixed', right: '16px', bottom: '110px', display: 'flex', flexDirection: 'column', gap: '10px', alignItems: 'flex-end', zIndex: 40}}>
+        {autoScroll && showSpeedSlider && (
+          <div style={{display: 'flex', alignItems: 'center', gap: '8px', backgroundColor: '#fff', borderRadius: '999px', padding: '6px 12px', boxShadow: '0 4px 12px rgba(188,0,75,0.15)'}}>
+            <span style={{fontFamily: 'Work Sans, sans-serif', fontSize: '11px', color: '#bc004b', fontWeight: 600, minWidth: 30, textAlign: 'right'}}>{scrollSpeed}×</span>
+            <input
+              type="range"
+              min={0.25}
+              max={2}
+              step={0.25}
+              value={scrollSpeed}
+              onChange={e => setScrollSpeed(Number(e.target.value))}
+              style={{width: '110px', accentColor: '#bc004b'}}
+            />
+          </div>
+        )}
+        {autoScroll && !showSpeedSlider && (
+          <button
+            onClick={() => setShowSpeedSlider(true)}
+            aria-label="调整速度"
+            style={{
+              fontFamily: 'Work Sans, sans-serif', fontSize: '11px', color: '#bc004b', fontWeight: 600,
+              backgroundColor: '#fff', border: '1px solid #f4dce4', borderRadius: '999px',
+              padding: '6px 12px', cursor: 'pointer', boxShadow: '0 4px 12px rgba(188,0,75,0.15)'
+            }}>{scrollSpeed}×</button>
+        )}
+        <button
+          onClick={() => setAutoScroll(s => !s)}
+          aria-label={autoScroll ? '暂停自动滚动' : '开始自动滚动'}
+          style={{
+            width: '48px', height: '48px', borderRadius: '50%',
+            backgroundColor: autoScroll ? '#bc004b' : '#fff',
+            color: autoScroll ? '#fff' : '#bc004b',
+            border: '1px solid #f4dce4', cursor: 'pointer',
+            boxShadow: '0 4px 12px rgba(188,0,75,0.15)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center'
+          }}>
+          <span className="material-symbols-outlined" style={{fontSize: '24px'}}>{autoScroll ? 'pause' : 'play_arrow'}</span>
+        </button>
+        {scrolled && (
+          <button
+            onClick={() => window.scrollTo({top: 0, behavior: 'smooth'})}
+            aria-label="返回顶部"
+            style={{
+              width: '48px', height: '48px', borderRadius: '50%',
+              backgroundColor: '#fff', color: '#bc004b',
+              border: '1px solid #f4dce4', cursor: 'pointer',
+              boxShadow: '0 4px 12px rgba(188,0,75,0.15)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center'
+            }}>
+            <span className="material-symbols-outlined" style={{fontSize: '24px'}}>arrow_upward</span>
+          </button>
+        )}
+      </div>
+
+      <DictionaryDrawer word={dictWord} pinyin={dictPinyin} onClose={() => setDictWord(null)} />
     </main>
   )
 }
