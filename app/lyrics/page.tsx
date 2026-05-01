@@ -92,6 +92,7 @@ export default function LyricsPage() {
   const [scrolled, setScrolled] = useState(false)
   const [autoScroll, setAutoScroll] = useState(false)
   const [scrollSpeed, setScrollSpeed] = useState(1)
+  const [showSpeedSlider, setShowSpeedSlider] = useState(false)
   const [dictWord, setDictWord] = useState<string | null>(null)
   const [dictPinyin, setDictPinyin] = useState<string>('')
   const router = useRouter()
@@ -129,6 +130,17 @@ export default function LyricsPage() {
     raf = requestAnimationFrame(tick)
     return () => cancelAnimationFrame(raf)
   }, [autoScroll, scrollSpeed])
+
+  useEffect(() => {
+    if (!showSpeedSlider) return
+    const t = setTimeout(() => setShowSpeedSlider(false), 2500)
+    return () => clearTimeout(t)
+  }, [showSpeedSlider, scrollSpeed])
+
+  useEffect(() => {
+    if (autoScroll) setShowSpeedSlider(true)
+    else setShowSpeedSlider(false)
+  }, [autoScroll])
 
   function startQuiz() {
     if (!song) return
@@ -327,9 +339,9 @@ export default function LyricsPage() {
       )}
 
       <div style={{position: 'fixed', right: '16px', bottom: '110px', display: 'flex', flexDirection: 'column', gap: '10px', alignItems: 'flex-end', zIndex: 40}}>
-        {autoScroll && (
+        {autoScroll && showSpeedSlider && (
           <div style={{display: 'flex', alignItems: 'center', gap: '8px', backgroundColor: '#fff', borderRadius: '999px', padding: '6px 12px', boxShadow: '0 4px 12px rgba(188,0,75,0.15)'}}>
-            <span style={{fontFamily: 'Work Sans, sans-serif', fontSize: '11px', color: '#bc004b', fontWeight: 600}}>{scrollSpeed}×</span>
+            <span style={{fontFamily: 'Work Sans, sans-serif', fontSize: '11px', color: '#bc004b', fontWeight: 600, minWidth: 30, textAlign: 'right'}}>{scrollSpeed}×</span>
             <input
               type="range"
               min={0.25}
@@ -340,6 +352,16 @@ export default function LyricsPage() {
               style={{width: '110px', accentColor: '#bc004b'}}
             />
           </div>
+        )}
+        {autoScroll && !showSpeedSlider && (
+          <button
+            onClick={() => setShowSpeedSlider(true)}
+            aria-label="调整速度"
+            style={{
+              fontFamily: 'Work Sans, sans-serif', fontSize: '11px', color: '#bc004b', fontWeight: 600,
+              backgroundColor: '#fff', border: '1px solid #f4dce4', borderRadius: '999px',
+              padding: '6px 12px', cursor: 'pointer', boxShadow: '0 4px 12px rgba(188,0,75,0.15)'
+            }}>{scrollSpeed}×</button>
         )}
         <button
           onClick={() => setAutoScroll(s => !s)}
