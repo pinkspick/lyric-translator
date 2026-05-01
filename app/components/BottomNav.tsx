@@ -8,6 +8,7 @@ export default function BottomNav() {
   const tabs = [
     { href: '/', icon: 'search', label: '搜索' },
     { href: '/lyrics', icon: 'auto_stories', label: '歌词' },
+    { href: '/quiz', icon: 'quiz', label: '测验' },
     { href: '/archive', icon: 'inventory_2', label: '档案' },
     { href: '/vocab', icon: 'menu_book', label: '生词' },
     { href: '/settings', icon: 'settings', label: '设置' },
