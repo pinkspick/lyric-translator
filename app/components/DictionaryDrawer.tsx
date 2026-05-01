@@ -8,38 +8,54 @@ type Props = {
   onClose: () => void
 }
 
+function speak(text: string) {
+  if (typeof window === 'undefined' || !window.speechSynthesis) return
+  window.speechSynthesis.cancel()
+  const u = new SpeechSynthesisUtterance(text)
+  u.lang = 'zh-CN'
+  u.rate = 0.85
+  window.speechSynthesis.speak(u)
+}
+
 export default function DictionaryDrawer({ word, pinyin, onClose }: Props) {
   const [definition, setDefinition] = useState('')
+  const [apiPinyin, setApiPinyin] = useState('')
   const [loading, setLoading] = useState(false)
 
   useEffect(() => {
-    if (!word) { setDefinition(''); return }
+    if (!word) { setDefinition(''); setApiPinyin(''); return }
     setLoading(true)
     setDefinition('')
+    setApiPinyin('')
     fetch('/api/dict?w=' + encodeURIComponent(word))
       .then(r => r.json())
-      .then(d => setDefinition(d.definition || '查无此词'))
+      .then(d => {
+        setDefinition(d.definition || '查无此词')
+        setApiPinyin(d.pinyin || '')
+      })
       .catch(() => setDefinition('查询失败'))
       .finally(() => setLoading(false))
   }, [word])
 
   async function addToVocab() {
     if (!word) return
+    const py = pinyin || apiPinyin
     const existing = JSON.parse(localStorage.getItem('vocab_list') || '[]')
     if (existing.find((v: { word: string }) => v.word === word)) {
       alert(word + ' 已在生词本中')
       return
     }
-    existing.push({ word, pinyin: pinyin || '', addedAt: new Date().toISOString() })
+    existing.push({ word, pinyin: py, addedAt: new Date().toISOString() })
     localStorage.setItem('vocab_list', JSON.stringify(existing))
     try {
       const { data: { user } } = await supabase.auth.getUser()
-      if (user) await supabase.from('vocab').upsert({ user_id: user.id, word, pinyin: pinyin || '', added_at: new Date().toISOString() }, { onConflict: 'user_id,word' })
+      if (user) await supabase.from('vocab').upsert({ user_id: user.id, word, pinyin: py, added_at: new Date().toISOString() }, { onConflict: 'user_id,word' })
     } catch {}
     alert(word + ' 已添加到生词本')
   }
 
   if (!word) return null
+  const displayPinyin = pinyin || apiPinyin
 
   return (
     <>
@@ -55,9 +71,18 @@ export default function DictionaryDrawer({ word, pinyin, onClose }: Props) {
         maxHeight: '60vh', overflowY: 'auto'
       }}>
         <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '12px'}}>
-          <div>
-            <p style={{fontFamily: 'Newsreader, serif', fontSize: '40px', fontWeight: 700, margin: '0 0 4px', color: '#25181e'}}>{word}</p>
-            {pinyin && <p style={{fontFamily: 'Work Sans, sans-serif', fontSize: '14px', color: '#bc004b', margin: 0}}>{pinyin}</p>}
+          <div style={{display: 'flex', alignItems: 'center', gap: '12px'}}>
+            <div>
+              <p style={{fontFamily: 'Newsreader, serif', fontSize: '40px', fontWeight: 700, margin: '0 0 4px', color: '#25181e'}}>{word}</p>
+              {displayPinyin && <p style={{fontFamily: 'Work Sans, sans-serif', fontSize: '14px', color: '#bc004b', margin: 0}}>{displayPinyin}</p>}
+            </div>
+            <button onClick={() => speak(word)} aria-label="播放发音" style={{
+              background: '#fff0f4', border: 'none', borderRadius: '50%',
+              width: '40px', height: '40px', cursor: 'pointer',
+              display: 'flex', alignItems: 'center', justifyContent: 'center'
+            }}>
+              <span className="material-symbols-outlined" style={{color: '#bc004b', fontSize: '22px'}}>volume_up</span>
+            </button>
           </div>
           <button onClick={onClose} style={{background: 'none', border: 'none', cursor: 'pointer', padding: '4px'}}>
             <span className="material-symbols-outlined" style={{color: '#7f7478'}}>close</span>

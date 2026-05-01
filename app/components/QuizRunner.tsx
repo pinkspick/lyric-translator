@@ -55,6 +55,17 @@ function applyTone(base: string, tone: number): string {
 
 const STAGE_SIZE = 10
 
+function speak(text: string) {
+  if (typeof window === 'undefined' || !window.speechSynthesis) return
+  try {
+    window.speechSynthesis.cancel()
+    const u = new SpeechSynthesisUtterance(text)
+    u.lang = 'zh-CN'
+    u.rate = 0.85
+    window.speechSynthesis.speak(u)
+  } catch {}
+}
+
 async function saveVocab(word: string, pinyin: string) {
   const existing = JSON.parse(localStorage.getItem('vocab_list') || '[]')
   if (!existing.find((v: { word: string }) => v.word === word)) {
@@ -94,6 +105,7 @@ export default function QuizRunner({ questions, title, onExit, onRestart }: Prop
     if (showSummary || !q) return
     fetch('/api/dict?w=' + encodeURIComponent(q.word))
       .then(r => r.json()).then(d => setWordDef(d.definition || '')).catch(() => {})
+    speak(q.word)
   }, [currentQ, stage, showSummary, q])
 
   useEffect(() => {
@@ -210,7 +222,16 @@ export default function QuizRunner({ questions, title, onExit, onRestart }: Prop
 
       <div style={{padding: '80px 8px 16px', fontFamily: 'sans-serif', maxWidth: 700, margin: '0 auto'}}>
         <div style={{textAlign: 'center', marginBottom: '1.25rem'}}>
-          <div style={{fontSize: 72, fontWeight: 500, letterSpacing: 4, lineHeight: 1.1}}>{q.word}</div>
+          <div style={{display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12}}>
+            <div style={{fontSize: 72, fontWeight: 500, letterSpacing: 4, lineHeight: 1.1}}>{q.word}</div>
+            <button onClick={() => speak(q.word)} aria-label="播放发音" style={{
+              background: '#fff0f4', border: 'none', borderRadius: '50%',
+              width: 44, height: 44, cursor: 'pointer',
+              display: 'flex', alignItems: 'center', justifyContent: 'center'
+            }}>
+              <span className="material-symbols-outlined" style={{color: '#bc004b', fontSize: 24}}>volume_up</span>
+            </button>
+          </div>
           {wordDef && <div style={{fontSize: 13, color: '#7f7478', fontStyle: 'italic', marginTop: '6px', fontFamily: 'Newsreader, serif'}}>{wordDef}</div>}
         </div>
 

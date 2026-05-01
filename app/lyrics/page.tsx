@@ -286,9 +286,9 @@ export default function LyricsPage() {
             <span style={{fontFamily: 'Work Sans, sans-serif', fontSize: '11px', color: '#bc004b', fontWeight: 600}}>{scrollSpeed}×</span>
             <input
               type="range"
-              min={0.5}
-              max={3}
-              step={0.5}
+              min={0.25}
+              max={2}
+              step={0.25}
               value={scrollSpeed}
               onChange={e => setScrollSpeed(Number(e.target.value))}
               style={{width: '110px', accentColor: '#bc004b'}}
