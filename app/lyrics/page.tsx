@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation'
 import { supabase } from '../../lib/supabase'
 import { colorPinyinLine } from '../../lib/toneColors'
 import { isAdvancedHsk, getHskWord, type HskWord } from '../../lib/hsk'
+import { recordSongView } from '../../lib/learnLog'
 import QuizRunner, { QuizQuestion } from '../components/QuizRunner'
 import DictionaryDrawer from '../components/DictionaryDrawer'
 
@@ -203,6 +204,11 @@ export default function LyricsPage() {
     return out.sort((a, b) => a.level - b.level)
   }, [song])
 
+  useEffect(() => {
+    if (!song) return
+    recordSongView({ title: song.title, artist: song.artist }, advancedWords)
+  }, [song, advancedWords])
+
   const viewButtons: { mode: ViewMode; label: string }[] = [
     { mode: 'hanzi', label: '汉字' },
     { mode: 'pinyin', label: '拼音' },
@@ -222,6 +228,7 @@ export default function LyricsPage() {
       title={'第1关'}
       onExit={() => setShowQuiz(false)}
       onRestart={startQuiz}
+      source={`歌曲 · ${song.title}`}
     />
   }
 

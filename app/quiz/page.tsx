@@ -80,6 +80,7 @@ export default function QuizPage() {
       onExit={() => router.push('/')}
       onRestart={restart}
       audio
+      source="HSK 测验"
     />
   )
 }

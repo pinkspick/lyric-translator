@@ -1,6 +1,7 @@
 'use client'
 import { useState, useEffect, useRef } from 'react'
 import { supabase } from '../../lib/supabase'
+import { recordQuiz } from '../../lib/learnLog'
 
 export type QuizQuestion = {
   word: string
@@ -85,9 +86,10 @@ type Props = {
   onExit: () => void
   onRestart: () => void
   audio?: boolean
+  source: string
 }
 
-export default function QuizRunner({ questions, title, onExit, onRestart, audio = false }: Props) {
+export default function QuizRunner({ questions, title, onExit, onRestart, audio = false, source }: Props) {
   const [stage, setStage] = useState(0)
   const [currentQ, setCurrentQ] = useState(0)
   const [stageResults, setStageResults] = useState<QuizResult[]>([])
@@ -140,6 +142,20 @@ export default function QuizRunner({ questions, title, onExit, onRestart, audio 
     setStageResults(newResults)
     setTimeout(() => {
       if (currentQ + 1 >= stageQuestions.length) {
+        const correctCount = newResults.filter(r => r.correct).length
+        const total = newResults.length
+        recordQuiz({
+          source,
+          score: total > 0 ? Number(((correctCount / total) * 100).toFixed(2)) : 0,
+          correct: correctCount,
+          total,
+          wrongs: newResults.filter(r => !r.correct).map(r => ({
+            word: r.question.word,
+            pinyin: r.question.pinyin,
+            correctTones: [r.question.tone1, r.question.tone2],
+            chosenTones: [r.chosenTone1, r.chosenTone2],
+          })),
+        })
         setShowSummary(true)
       } else {
         setCurrentQ(qq => qq + 1)
